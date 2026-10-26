@@ -1,0 +1,204 @@
+{
+    "i18n": true,
+    "type": "tabs",
+    "items": {
+        "mainTab": {
+            "type": "panel",
+            "label": "General",
+            "items": {
+                "backend": {
+                    "type": "select",
+                    "label": "Backend",
+                    "options": [
+                        { "label": "backend_docker", "value": "docker" },
+                        { "label": "backend_external", "value": "external" }
+                    ],
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "externalUrl": {
+                    "type": "text",
+                    "label": "External server URL",
+                    "help": "help_externalUrl",
+                    "placeholder": "http://192.168.1.50:11434",
+                    "hidden": "data.backend !== 'external'",
+                    "validator": "data.backend !== 'external' || /^https?:\\/\\/[^\\s/]+(:\\d+)?\\/?$/.test(data.externalUrl || '')",
+                    "validatorErrorText": "Invalid URL",
+                    "validatorNoSaveOnError": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "defaultModel": {
+                    "type": "text",
+                    "label": "Default model",
+                    "help": "help_defaultModel",
+                    "placeholder": "qwen3:8b",
+                    "validator": "!data.defaultModel || /^[a-zA-Z0-9._:\\/-]+$/.test(data.defaultModel)",
+                    "validatorErrorText": "Invalid model name",
+                    "validatorNoSaveOnError": true,
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "requestTimeout": {
+                    "type": "number",
+                    "label": "Request timeout",
+                    "help": "help_requestTimeout",
+                    "min": 10,
+                    "max": 3600,
+                    "unit": "s",
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "parallel": {
+                    "type": "number",
+                    "label": "Parallel requests",
+                    "help": "help_parallel",
+                    "min": 1,
+                    "max": 16,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "maxQueue": {
+                    "type": "number",
+                    "label": "Maximum queue length",
+                    "help": "help_maxQueue",
+                    "min": 0,
+                    "max": 1000,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "dockerCpu": {
+                    "type": "checkbox",
+                    "hidden": "true",
+                    "onChange": {
+                        "alsoDependsOn": ["backend", "gpu"],
+                        "calculateFunc": "data.backend === 'docker' && data.gpu === 'cpu'",
+                        "ignoreOwnChanges": true
+                    }
+                },
+                "dockerRocm": {
+                    "type": "checkbox",
+                    "hidden": "true",
+                    "onChange": {
+                        "alsoDependsOn": ["backend", "gpu"],
+                        "calculateFunc": "data.backend === 'docker' && data.gpu === 'rocm'",
+                        "ignoreOwnChanges": true
+                    }
+                }
+            }
+        },
+        "dockerTab": {
+            "type": "panel",
+            "label": "Docker",
+            "hidden": "data.backend !== 'docker'",
+            "items": {
+                "_dockerCheck": {
+                    "type": "checkDocker",
+                    "label": "Docker status",
+                    "disabled": "true",
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 12,
+                    "lg": 12,
+                    "xl": 12
+                },
+                "gpu": {
+                    "type": "select",
+                    "label": "Hardware",
+                    "help": "help_gpu",
+                    "options": [
+                        { "label": "gpu_cpu", "value": "cpu" },
+                        { "label": "gpu_rocm", "value": "rocm" }
+                    ],
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "bind": {
+                    "type": "ip",
+                    "label": "Bind address",
+                    "help": "help_bind",
+                    "listenOnAllPorts": true,
+                    "onlyIp4": true,
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "port": {
+                    "type": "port",
+                    "label": "Port",
+                    "min": 1,
+                    "max": 65535,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "keepAlive": {
+                    "type": "text",
+                    "label": "Keep model in memory",
+                    "help": "help_keepAlive",
+                    "validator": "/^-?\\d+(\\.\\d+)?(ms|s|m|h)?(\\d+(\\.\\d+)?(ms|s|m|h))*$/.test(data.keepAlive || '')",
+                    "validatorErrorText": "Invalid duration",
+                    "validatorNoSaveOnError": true,
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "autoUpdate": {
+                    "type": "checkbox",
+                    "label": "Update the container image automatically",
+                    "help": "help_autoUpdate",
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
+                "stopOnUnload": {
+                    "type": "checkbox",
+                    "label": "Stop the container when the instance stops",
+                    "help": "help_stopOnUnload",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                }
+            }
+        }
+    }
+}

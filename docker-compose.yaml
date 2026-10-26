@@ -1,0 +1,54 @@
+# Container definition for @iobroker/plugin-docker.
+# The plugin replaces ${config.x:-default} with the values from the instance configuration (native).
+# Only values and defaults are supported here, no expressions: which service runs is decided
+# by the derived fields dockerCpu / dockerRocm, which the admin configuration calculates.
+# At most one of the two services may be enabled, because both use the same port.
+services:
+  ollama:
+    image: 'ollama/ollama:latest'
+    labels:
+      - 'iobEnabled=${config.dockerCpu:-false}'
+      - 'iobStopOnUnload=${config.stopOnUnload:-false}'
+      - 'iobMonitoringEnabled=true'
+      - 'iobAutoImageUpdate=${config.autoUpdate:-false}'
+    ports:
+      - '${config.bind:-127.0.0.1}:${config.port:-11434}:11434'
+    environment:
+      OLLAMA_KEEP_ALIVE: '${config.keepAlive:-5m}'
+      OLLAMA_MAX_LOADED_MODELS: '1'
+      OLLAMA_NUM_PARALLEL: '${config.parallel:-1}'
+    volumes:
+      # Models are several GB large and can be downloaded again at any time: no iobBackup
+      - models:/root/.ollama
+    networks:
+      - true
+    restart: unless-stopped
+
+  ollama-rocm:
+    image: 'ollama/ollama:rocm'
+    labels:
+      - 'iobEnabled=${config.dockerRocm:-false}'
+      - 'iobStopOnUnload=${config.stopOnUnload:-false}'
+      - 'iobMonitoringEnabled=true'
+      - 'iobAutoImageUpdate=${config.autoUpdate:-false}'
+    ports:
+      - '${config.bind:-127.0.0.1}:${config.port:-11434}:11434'
+    environment:
+      OLLAMA_KEEP_ALIVE: '${config.keepAlive:-5m}'
+      OLLAMA_MAX_LOADED_MODELS: '1'
+      OLLAMA_NUM_PARALLEL: '${config.parallel:-1}'
+    devices:
+      - '/dev/kfd:/dev/kfd'
+      - '/dev/dri:/dev/dri'
+    volumes:
+      - models:/root/.ollama
+    networks:
+      - true
+    restart: unless-stopped
+
+networks:
+  true:
+    driver: bridge
+
+volumes:
+  models:

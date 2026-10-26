@@ -1,0 +1,135 @@
+{
+    "common": {
+        "name": "ai-server",
+        "version": "0.0.1",
+        "news": {
+            "0.0.1": {
+                "en": "initial release",
+                "de": "Erstveröffentlichung",
+                "ru": "Начальная версия",
+                "pt": "lançamento inicial",
+                "nl": "Eerste uitgave",
+                "fr": "Première version",
+                "it": "Versione iniziale",
+                "es": "Versión inicial",
+                "pl": "Pierwsze wydanie",
+                "uk": "Початкова версія",
+                "zh-cn": "首次出版"
+            }
+        },
+        "titleLang": {
+            "en": "AI Server",
+            "de": "AI-Server",
+            "ru": "AI-сервер",
+            "pt": "Servidor de IA",
+            "nl": "AI-server",
+            "fr": "Serveur IA",
+            "it": "Server AI",
+            "es": "Servidor de IA",
+            "pl": "Serwer AI",
+            "uk": "Сервер ШІ",
+            "zh-cn": "人工智能服务器"
+        },
+        "desc": {
+            "en": "Runs a local large language model (Ollama) via Docker and manages its models",
+            "de": "Führt ein lokales großes Sprachmodell (Ollama) über Docker aus und verwaltet seine Modelle",
+            "ru": "Запускает локальную модель большого языка (Ollama) через Docker и управляет ее моделями.",
+            "pt": "Executa um modelo de linguagem local grande (Ollama) via Docker e gerencia seus modelos",
+            "nl": "Voert een lokaal groottaalmodel (Ollama) uit via Docker en beheert de modellen ervan",
+            "fr": "Exécute un grand modèle de langage local (Ollama) via Docker et gère ses modèles",
+            "it": "Esegue un modello linguistico locale di grandi dimensioni (Ollama) tramite Docker e ne gestisce i modelli",
+            "es": "Ejecuta un modelo de lenguaje grande local (Ollama) a través de Docker y administra sus modelos.",
+            "pl": "Uruchamia lokalny model dużego języka (Ollama) za pośrednictwem Dockera i zarządza jego modelami",
+            "uk": "Запускає локальну велику мовну модель (Ollama) через Docker і керує її моделями",
+            "zh-cn": "通过 Docker 运行本地大语言模型 (Ollama) 并管理其模型"
+        },
+        "authors": [
+            "GermanBluefox <dogafox@gmail.com>"
+        ],
+        "keywords": [
+            "ai",
+            "llm",
+            "ollama",
+            "docker",
+            "chat"
+        ],
+        "licenseInformation": {
+            "type": "free",
+            "license": "MIT"
+        },
+        "platform": "Javascript/Node.js",
+        "icon": "ai-server.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/GermanBluefox/ioBroker.ai-server/main/admin/ai-server.png",
+        "readme": "https://github.com/GermanBluefox/ioBroker.ai-server/blob/main/README.md",
+        "loglevel": "info",
+        "tier": 3,
+        "mode": "daemon",
+        "type": "general",
+        "compact": true,
+        "connectionType": "local",
+        "dataSource": "poll",
+        "messagebox": true,
+        "adminUI": {
+            "config": "json"
+        },
+        "stopTimeout": 15000,
+        "plugins": {
+            "docker": {
+                "iobDockerComposeFiles": [
+                    "docker-compose.yaml"
+                ]
+            }
+        },
+        "dependencies": [
+            {
+                "js-controller": ">=7.1.0"
+            }
+        ],
+        "globalDependencies": [
+            {
+                "admin": ">=7.7.2"
+            }
+        ]
+    },
+    "native": {
+        "backend": "docker",
+        "gpu": "cpu",
+        "dockerCpu": true,
+        "dockerRocm": false,
+        "externalUrl": "",
+        "bind": "127.0.0.1",
+        "port": 11434,
+        "keepAlive": "5m",
+        "parallel": 1,
+        "maxQueue": 10,
+        "requestTimeout": 300,
+        "defaultModel": "",
+        "autoUpdate": false,
+        "stopOnUnload": false
+    },
+    "objects": [],
+    "instanceObjects": [
+        {
+            "_id": "info",
+            "type": "channel",
+            "common": {
+                "name": "Information"
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "Ollama is reachable",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
+    ]
+}
