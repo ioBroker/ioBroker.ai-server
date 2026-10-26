@@ -130,6 +130,52 @@
                 "def": false
             },
             "native": {}
+        },
+        {
+            "_id": "info.status",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "Status of the AI server",
+                "type": "string",
+                "read": true,
+                "write": false,
+                "def": "stopped",
+                "states": {
+                    "starting": "starting",
+                    "ready": "ready",
+                    "busy": "busy",
+                    "error": "error",
+                    "stopped": "stopped"
+                }
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.backendVersion",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "Version of Ollama",
+                "type": "string",
+                "read": true,
+                "write": false,
+                "def": ""
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.lastError",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "Last error",
+                "type": "string",
+                "read": true,
+                "write": false,
+                "def": ""
+            },
+            "native": {}
         }
     ]
 }
