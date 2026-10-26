@@ -7,7 +7,7 @@
     "email": "dogafox@gmail.com"
   },
   "contributors": [],
-  "homepage": "https://github.com/GermanBluefox/ioBroker.ai-server",
+  "homepage": "https://github.com/ioBroker/ioBroker.ai-server",
   "license": "MIT",
   "keywords": [
     "ioBroker",
@@ -19,7 +19,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/GermanBluefox/ioBroker.ai-server.git"
+    "url": "https://github.com/ioBroker/ioBroker.ai-server.git"
   },
   "engines": {
     "node": ">= 22"
@@ -73,7 +73,7 @@
     "dev-server": "dev-server"
   },
   "bugs": {
-    "url": "https://github.com/GermanBluefox/ioBroker.ai-server/issues"
+    "url": "https://github.com/ioBroker/ioBroker.ai-server/issues"
   },
   "readmeFilename": "README.md"
 }

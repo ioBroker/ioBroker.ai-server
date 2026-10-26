@@ -8,11 +8,40 @@
 
 [![NPM](https://nodei.co/npm/iobroker.ai-server.png?downloads=true)](https://nodei.co/npm/iobroker.ai-server/)
 
-**Tests:** ![Test and Release](https://github.com/GermanBluefox/ioBroker.ai-server/workflows/Test%20and%20Release/badge.svg)
+**Tests:** ![Test and Release](https://github.com/ioBroker/ioBroker.ai-server/workflows/Test%20and%20Release/badge.svg)
 
 ## ai-server adapter for ioBroker
 
 Runs a local large language model (Ollama) via Docker and manages its models
+
+## Known limitations
+
+### The first start takes several minutes
+
+On the first start, `@iobroker/plugin-docker` downloads the image `ollama/ollama:latest` before the adapter itself starts.
+Until the download is finished, the instance is shown as not running. The log shows
+`Pulling image ollama/ollama:latest for own container iob_ai_server_0_ollama. This may take some time...`.
+On a Raspberry Pi 5 this took about 5 minutes. Later starts are fast, as the image is already there.
+
+### Switching between CPU, ROCm and an external server
+
+Up to `@iobroker/plugin-docker` 1.2.1, the container of the previous choice is not stopped when you change the
+backend or the GPU type in the instance settings. It keeps running and keeps the port:
+
+- after switching from CPU to ROCm (or back), the new container cannot publish the port and does not start;
+- after switching to an external server, the old Ollama keeps running and uses memory.
+
+Stop the old container once by hand. The names contain the instance number, here for instance 0:
+
+```bash
+sudo docker stop iob_ai_server_0_ollama        # CPU container
+sudo docker stop iob_ai_server_0_ollama-rocm   # ROCm container
+```
+
+The container is only stopped, not deleted. When you switch back, the adapter starts it again.
+
+A fix for plugin-docker is proposed in [ioBroker/plugin-docker#61](https://github.com/ioBroker/plugin-docker/pull/61).
+As soon as it is released, this adapter will require that version and the step above is no longer necessary.
 
 ## Developer manual
 This section is intended for the developer. It can be deleted later.
@@ -34,14 +63,14 @@ You are almost done, only a few steps left:
     ```
 1. Link your local repository with the one on GitHub:  
     ```bash
-    git remote add origin https://github.com/GermanBluefox/ioBroker.ai-server
+    git remote add origin https://github.com/ioBroker/ioBroker.ai-server
     ```
 
 1. Push all files to the GitHub repo:  
     ```bash
     git push origin main
     ```
-1. Add a new secret under https://github.com/GermanBluefox/ioBroker.ai-server/settings/secrets. It must be named `AUTO_MERGE_TOKEN` and contain a personal access token with push access to the repository, e.g. yours. You can create a new token under https://github.com/settings/tokens.
+1. Add a new secret under https://github.com/ioBroker/ioBroker.ai-server/settings/secrets. It must be named `AUTO_MERGE_TOKEN` and contain a personal access token with push access to the repository, e.g. yours. You can create a new token under https://github.com/settings/tokens.
 
 1. Head over to [src/main.ts](src/main.ts) and start programming!
 
