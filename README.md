@@ -19,7 +19,8 @@ What the adapter does:
 
 - starts Ollama in a Docker container (via `@iobroker/plugin-docker`), or connects to an Ollama server that is already
   running in your network;
-- downloads, loads, unloads and deletes models and shows them as objects;
+- downloads, loads, unloads and deletes models, shows them as objects and in the tab "Models" with their size, and
+  deletes models that were not used for a while, if wanted;
 - answers requests to the model via `sendTo` and via states;
 - shows the state of the server, the queue and the speed of the last answer.
 
@@ -35,7 +36,7 @@ Other adapters (javascript, admin, ai-toolbox, ai-assistant) can use the Ollama 
 
 ## Requirements
 
-- js-controller 7.1.0 or newer, admin 7.7.2 or newer, Node.js 22 or newer.
+- js-controller 7.1.0 or newer, admin 7.8.21 or newer, Node.js 22.19 or newer.
 - For the backend "Docker container":
   - a Linux host (e.g. Raspberry Pi OS, Debian, Ubuntu) with Docker Engine 20.10 or newer;
   - the user `iobroker` needs access to the Docker socket. Add it to the group `docker` and restart ioBroker:
@@ -78,6 +79,7 @@ Tab **General**:
 | Backend               | "Docker container (managed by ioBroker)" or "External Ollama server"                        |
 | External server URL   | only for the external server, e.g. `http://192.168.1.50:11434`                              |
 | Default model         | used for requests without a model, downloaded at the start if it is missing (see below)     |
+| Delete unused models after | number of days, `0` (default) = never, see [Deleting unused models](#deleting-unused-models) |
 | Request timeout       | maximum duration of a request to the model in seconds (default 300)                         |
 | Parallel requests     | how many requests are sent to the model at the same time (default 1)                       |
 | Maximum queue length  | requests beyond this number of waiting ones fail at once (default 10)                       |
@@ -109,9 +111,42 @@ If the default model is not downloaded yet, the adapter downloads it when the in
 
 Check the free memory first, see [Memory](#memory).
 
-To download more models, write the name into `ai-server.0.control.pull` or use `sendTo` (see below).
-The progress is shown in `control.pullProgress` (0-100 %), errors in the log and in `info.lastError`.
-Only one download runs at a time.
+To download more models, use "Download model" in the tab "Models" (see below), write the name into
+`ai-server.0.control.pull` or use `sendTo`. The progress is shown in `control.pullProgress` (0-100 %), errors in the
+log and in `info.lastError`. Only one download runs at a time.
+
+### Tab "Models"
+
+The tab "Models" of the instance settings shows a card per downloaded model with:
+
+- the size on the disk, the number of parameters and the quantization;
+- whether the model is loaded and whether it is the default model;
+- when it was used the last time and, if [Deleting unused models](#deleting-unused-models) is on, when it will be
+  deleted;
+- buttons to load, unload and delete the model. Before deleting, a dialog asks for confirmation and shows how much
+  space is freed.
+
+Above the cards, the size of all models together is shown, and "Download model" downloads a new one with a progress
+dialog. If the browser is closed meanwhile, the download goes on. The same view is in the tab "Devices" of admin, if that tab is
+switched on.
+
+The marks "loaded" and "default model" on the cards need admin 8.0.1 or newer; older versions do not show them.
+
+### Deleting unused models
+
+With "Delete unused models after" (tab "General"), models that were not used for the given number of days are deleted
+from the disk, to free the space. A model counts as used:
+
+- while it is loaded; this is checked every 30 seconds, also for requests that other adapters send to Ollama directly;
+- when it answers a request via this adapter (`chat`, `generate`, `chat.prompt`).
+
+The time of the last use is in `models.<id>.lastUsed`. A model the adapter sees for the first time counts as used at
+that moment, so the days start to count when the option or the model is new. Models are checked once per hour, the first
+time one hour after the connection to Ollama. The default model, loaded models and a model being downloaded are never
+deleted automatically.
+
+Not seen as use: requests while the instance is stopped, and short requests of other adapters to a model that is
+unloaded at once afterwards ("Keep model in memory" = `0`). Deleted models can be downloaded again at any time.
 
 Every downloaded model gets a channel below `models`, e.g. `models.qwen3_4b` for `qwen3:4b`:
 
@@ -122,6 +157,7 @@ Every downloaded model gets a channel below `models`, e.g. `models.qwen3_4b` for
 | `parameterSize` | number of parameters, e.g. `4.0B`             |
 | `quantization`  | e.g. `Q4_K_M`                                 |
 | `loaded`        | the model is in memory                        |
+| `lastUsed`      | time of the last use (loaded or answered)     |
 | `load`          | button: load the model into memory            |
 | `unload`        | button: remove the model from memory          |
 
@@ -307,6 +343,9 @@ with ROCm, or an Ollama installed directly on the host with the backend "Externa
 * (GermanBluefox) models: list, download with progress, load, unload, delete; default model is downloaded at start
 * (GermanBluefox) requests via `sendTo` (`chat`, `generate`, `status`, `getEndpoint`) and via the states `chat.*`
 * (GermanBluefox) queue for parallel requests, metrics of the last answer
+* (GermanBluefox) tab "Models" (device manager): size and last use of every model, load, unload, delete, download with
+  progress
+* (GermanBluefox) option to delete models that were not used for a number of days
 
 ## License
 MIT License

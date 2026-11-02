@@ -70,6 +70,9 @@
         "connectionType": "local",
         "dataSource": "poll",
         "messagebox": true,
+        "supportedMessages": {
+            "deviceManager": true
+        },
         "adminUI": {
             "config": "json"
         },
@@ -88,7 +91,7 @@
         ],
         "globalDependencies": [
             {
-                "admin": ">=7.7.2"
+                "admin": ">=7.8.21"
             }
         ]
     },
@@ -105,6 +108,7 @@
         "maxQueue": 10,
         "requestTimeout": 300,
         "defaultModel": "",
+        "deleteUnusedDays": 0,
         "autoUpdate": false,
         "stopOnUnload": false
     },

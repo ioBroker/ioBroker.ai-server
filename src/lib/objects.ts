@@ -18,13 +18,17 @@ export function toModelId(name: string, forbiddenChars: RegExp): string {
     return name.replace(forbiddenChars, '_').replace(/[.:/]/g, '_');
 }
 
-/** Definitions of the states of a model, by the last part of their ID. The values come from {@link ModelInfo} */
-export const MODEL_STATES: Readonly<Record<keyof ModelInfo | ModelCommand, ioBroker.StateCommon>> = {
+/**
+ * Definitions of the states of a model, by the last part of their ID. The values come from {@link ModelInfo},
+ * `lastUsed` is kept by the adapter.
+ */
+export const MODEL_STATES: Readonly<Record<keyof ModelInfo | ModelCommand | 'lastUsed', ioBroker.StateCommon>> = {
     name: { name: 'Name of the model', type: 'string', role: 'text', read: true, write: false },
     size: { name: 'Size on disk', type: 'number', role: 'value', unit: 'B', read: true, write: false },
     parameterSize: { name: 'Number of parameters', type: 'string', role: 'text', read: true, write: false },
     quantization: { name: 'Quantization', type: 'string', role: 'text', read: true, write: false },
     loaded: { name: 'Loaded into memory', type: 'boolean', role: 'indicator', read: true, write: false },
+    lastUsed: { name: 'Last use (loaded or answered)', type: 'number', role: 'date', read: true, write: false },
     load: { name: 'Load the model into memory', type: 'boolean', role: 'button', read: false, write: true },
     unload: { name: 'Unload the model from memory', type: 'boolean', role: 'button', read: false, write: true },
 };

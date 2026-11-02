@@ -52,6 +52,19 @@
                     "lg": 4,
                     "xl": 4
                 },
+                "deleteUnusedDays": {
+                    "type": "number",
+                    "label": "Delete unused models after",
+                    "help": "help_deleteUnusedDays",
+                    "unit": "unit_days",
+                    "min": 0,
+                    "max": 3650,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
                 "requestTimeout": {
                     "type": "number",
                     "label": "Request timeout",
@@ -118,6 +131,35 @@
                         "ignoreOwnChanges": true
                     }
                 }
+            }
+        },
+        "modelsTab": {
+            "type": "panel",
+            "label": "Models",
+            "items": {
+                "_deviceManager": {
+                    "type": "deviceManager",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 12,
+                    "lg": 12,
+                    "xl": 12,
+                    "style": {
+                        "width": "100%",
+                        "height": "100%",
+                        "overflow": "hidden"
+                    }
+                }
+            },
+            "style": {
+                "width": "100%",
+                "height": "100%",
+                "overflow": "hidden"
+            },
+            "innerStyle": {
+                "width": "100%",
+                "height": "100%",
+                "overflow": "hidden"
             }
         },
         "dockerTab": {

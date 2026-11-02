@@ -2,7 +2,9 @@
  * Created with @iobroker/create-adapter v3.1.5
  */
 
+import { join } from 'node:path';
 import * as utils from '@iobroker/adapter-core';
+import { type ModelBackend, ModelManagement } from './lib/device-management';
 import { type ModelInfo, modelOptions, sameModel, toModelInfos } from './lib/models';
 import { MODEL_STATES, parseModelCommand, toModelId } from './lib/objects';
 import {
@@ -23,6 +25,7 @@ import {
     toGenerateRequest,
     toMetrics,
 } from './lib/requests';
+import { findUnusedModels, LAST_USED_RESOLUTION_MS } from './lib/usage';
 
 /** First and maximal delay between two attempts to reach Ollama */
 const RETRY_MIN_MS = 2_000;
@@ -35,6 +38,8 @@ const MONITOR_INTERVAL_MS = 30_000;
 const PROBE_TIMEOUT_MS = 5_000;
 /** The progress of a download is written at most this often */
 const PULL_PROGRESS_INTERVAL_MS = 1_000;
+/** Unused models are looked for this often, the first time after this time since the connection */
+const CLEANUP_INTERVAL_MS = 60 * 60_000;
 
 type Status = 'starting' | 'ready' | 'busy' | 'error' | 'stopped';
 
@@ -84,6 +89,10 @@ class AiServer extends utils.Adapter {
     #version = '';
     /** Number of running requests started via `chat.prompt` */
     #stateChats = 0;
+    /** Time of the last use of the models by object ID, as in the states `models.<id>.lastUsed` */
+    #lastUsed = new Map<string, number>();
+    /** Time of the last search for unused models */
+    #lastCleanup = 0;
 
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
         super({
@@ -102,6 +111,15 @@ class AiServer extends utils.Adapter {
      * The plugin is initialized before this method is called, so a missing image is already pulled.
      */
     private async onReady(): Promise<void> {
+        try {
+            // the texts of the device manager are in the translations of the instance settings
+            await utils.I18n.init(join(__dirname, '..', 'admin'), this);
+        } catch (error) {
+            this.log.warn(`Cannot read the translations: ${errorText(error)}`);
+        }
+        // the models in the device manager of the admin: it receives the messages "dm:*" by itself
+        new ModelManagement(this, this.#modelBackend());
+
         await this.setState('info.connection', false, true);
         await this.#setStatus('starting');
         this.#queue = new RequestQueue({
@@ -133,7 +151,7 @@ class AiServer extends utils.Adapter {
 
         this.#client = new OllamaClient({
             baseUrl,
-            timeoutMs: (Number(this.config.requestTimeout) || 300) * 1000,
+            timeoutMs: this.#requestTimeoutMs(),
             timers: {
                 setTimeout: (callback, ms) => this.setTimeout(callback, ms),
                 clearTimeout: handle => this.clearTimeout(handle as ioBroker.Timeout | undefined),
@@ -180,7 +198,7 @@ class AiServer extends utils.Adapter {
                 const model = typeof state.val === 'string' ? state.val.trim() : '';
                 if (model) {
                     // acknowledged by the download itself
-                    this.#startPull(model);
+                    void this.#startPull(model);
                 } else {
                     await this.setState(localId, '', true);
                 }
@@ -219,7 +237,8 @@ class AiServer extends utils.Adapter {
      * @param obj the message
      */
     private async onMessage(obj: ioBroker.Message): Promise<void> {
-        if (!obj?.command) {
+        // the messages of the device manager are answered by ModelManagement
+        if (!obj?.command || obj.command.startsWith('dm:')) {
             return;
         }
         let answer: unknown;
@@ -250,16 +269,12 @@ class AiServer extends utils.Adapter {
                 return this.#refreshModels();
 
             case 'pull':
-                this.#startPull(getModel(message));
+                void this.#startPull(getModel(message));
                 return { started: true };
 
-            case 'deleteModel': {
-                const model = getModel(message);
-                await this.#requireClient().deleteModel(model);
-                this.log.info(`Model ${model} deleted`);
-                await this.#refreshModels();
+            case 'deleteModel':
+                await this.#deleteModel(getModel(message));
                 return { deleted: true };
-            }
 
             case 'loadModel':
                 await this.#setLoaded(getModel(message), true);
@@ -312,6 +327,36 @@ class AiServer extends utils.Adapter {
             default:
                 throw new Error(`Unknown command "${command}"`);
         }
+    }
+
+    /** Timeout of a request to the model in ms */
+    #requestTimeoutMs(): number {
+        return (Number(this.config.requestTimeout) || 300) * 1000;
+    }
+
+    /** What the device manager of the admin needs from the adapter */
+    #modelBackend(): ModelBackend {
+        return {
+            listModels: () => this.#refreshModels(),
+            getChannelId: name => {
+                const id = this.#findModelId(name);
+                return id ? `${this.namespace}.models.${id}` : undefined;
+            },
+            getLastUsed: name => {
+                const id = this.#findModelId(name);
+                return id ? this.#lastUsed.get(id) : undefined;
+            },
+            getSettings: () => ({
+                defaultModel: this.config.defaultModel || '',
+                deleteUnusedDays: Number(this.config.deleteUnusedDays) || 0,
+                requestTimeoutMs: this.#requestTimeoutMs(),
+            }),
+            setLoaded: (name, load) => this.#setLoaded(name, load),
+            deleteModel: name => this.#deleteModel(name),
+            pull: async (name, onProgress) => {
+                await this.#startPull(name, onProgress);
+            },
+        };
     }
 
     /** The URL of the Ollama API without trailing slash, or null if the configured URL is invalid */
@@ -413,12 +458,17 @@ class AiServer extends utils.Adapter {
             await this.subscribeStatesAsync('chat.prompt');
         }
         this.#monitorTimer = this.setInterval(() => void this.#monitor(), MONITOR_INTERVAL_MS);
+        // give the monitor time to see which models are in use before anything is deleted
+        this.#lastCleanup = Date.now();
         if (models) {
             this.#ensureDefaultModel(models);
         }
     }
 
-    /** Check the connection and update `loaded` regularly. If Ollama does not answer, wait for it again */
+    /**
+     * Check the connection, update `loaded` and delete unused models regularly.
+     * If Ollama does not answer, wait for it again.
+     */
     async #monitor(): Promise<void> {
         if (this.#monitorRunning || !this.#client || !this.#connected) {
             return;
@@ -435,6 +485,7 @@ class AiServer extends utils.Adapter {
                 return;
             }
             await this.#updateLoaded(running);
+            await this.#deleteUnusedModels(running);
         } catch (error) {
             this.log.warn(`Cannot update the models: ${errorText(error)}`);
         } finally {
@@ -480,6 +531,7 @@ class AiServer extends utils.Adapter {
         const [models, running] = await Promise.all([client.listModels(), client.listRunningModels()]);
         const infos = toModelInfos(models, running);
         const current = new Map<string, string>();
+        const now = Date.now();
         for (const info of infos) {
             const id = toModelId(info.name, this.FORBIDDEN_CHARS);
             const other = current.get(id);
@@ -499,6 +551,18 @@ class AiServer extends utils.Adapter {
             for (const [key, value] of Object.entries(info)) {
                 await this.setStateChangedAsync(`models.${id}.${key}`, value as ioBroker.StateValue, true);
             }
+            if (!this.#lastUsed.has(id)) {
+                // a new model counts as used when the adapter sees it the first time
+                const state = await this.getStateAsync(`models.${id}.lastUsed`);
+                const known = typeof state?.val === 'number' && state.val > 0 ? state.val : 0;
+                this.#lastUsed.set(id, known || now);
+                if (!known) {
+                    await this.setState(`models.${id}.lastUsed`, now, true);
+                }
+            }
+            if (info.loaded) {
+                await this.#markUsed(id, now);
+            }
         }
 
         // Also models deleted while the adapter was not running
@@ -512,6 +576,7 @@ class AiServer extends utils.Adapter {
             if (!id.includes('.') && !current.has(id)) {
                 this.log.debug(`Model ${id} does not exist any more, deleting its objects`);
                 await this.delObjectAsync(`models.${id}`, { recursive: true });
+                this.#lastUsed.delete(id);
             }
         }
         this.#models = current;
@@ -533,6 +598,92 @@ class AiServer extends utils.Adapter {
         for (const [id, name] of this.#models) {
             const loaded = running.some(item => sameModel(item.name || item.model, name));
             await this.setStateChangedAsync(`models.${id}.loaded`, loaded, true);
+            if (loaded) {
+                await this.#markUsed(id);
+            }
+        }
+    }
+
+    /**
+     * Object ID of a downloaded model
+     *
+     * @param name name of the model, as given or as Ollama reports it
+     */
+    #findModelId(name: string): string | undefined {
+        for (const [id, known] of this.#models) {
+            if (sameModel(known, name)) {
+                return id;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Remember the use of a model in `models.<id>.lastUsed`. A model that stays loaded is written every few minutes only.
+     *
+     * @param id object ID of the model
+     * @param now time of the use
+     */
+    async #markUsed(id: string, now = Date.now()): Promise<void> {
+        if (now - (this.#lastUsed.get(id) ?? 0) < LAST_USED_RESOLUTION_MS) {
+            return;
+        }
+        this.#lastUsed.set(id, now);
+        await this.setState(`models.${id}.lastUsed`, now, true);
+    }
+
+    /**
+     * A request was answered by the model: it is in use
+     *
+     * @param name the model as named in the answer
+     */
+    #noteUse(name: string): void {
+        const id = this.#findModelId(name);
+        if (id) {
+            this.#markUsed(id).catch(error => this.log.debug(`Cannot write the last use: ${errorText(error)}`));
+        }
+    }
+
+    /**
+     * Delete a model from the disk of Ollama
+     *
+     * @param model name of the model
+     */
+    async #deleteModel(model: string): Promise<void> {
+        await this.#requireClient().deleteModel(model);
+        this.log.info(`Model ${model} deleted`);
+        await this.#refreshModels();
+    }
+
+    /**
+     * Delete the models nobody used for `deleteUnusedDays` days, at most once per hour.
+     * The default model and a model being downloaded are kept.
+     *
+     * @param running the answer of /api/ps
+     */
+    async #deleteUnusedModels(running: OllamaRunningModel[]): Promise<void> {
+        const days = Number(this.config.deleteUnusedDays) || 0;
+        const now = Date.now();
+        if (days <= 0 || now - this.#lastCleanup < CLEANUP_INTERVAL_MS) {
+            return;
+        }
+        this.#lastCleanup = now;
+        const models = [...this.#models].map(([id, name]) => ({
+            name,
+            loaded: running.some(item => sameModel(item.name || item.model, name)),
+            lastUsed: this.#lastUsed.get(id),
+        }));
+        const unused = findUnusedModels(models, now, days, [this.config.defaultModel || '', this.#pulling || '']);
+        for (const model of unused) {
+            try {
+                await this.#requireClient().deleteModel(model);
+                this.log.info(`Model ${model} deleted, because it was not used for ${days} days`);
+            } catch (error) {
+                await this.#reportError(`Cannot delete the unused model ${model}: ${errorText(error)}`);
+            }
+        }
+        if (unused.length) {
+            await this.#refreshModels();
         }
     }
 
@@ -565,18 +716,21 @@ class AiServer extends utils.Adapter {
         }
         this.log.info(`The default model ${model} is not downloaded yet, downloading it now`);
         try {
-            this.#startPull(model);
+            void this.#startPull(model);
         } catch (error) {
             void this.#reportError(`Cannot download the default model: ${errorText(error)}`);
         }
     }
 
     /**
-     * Start the download of a model. Its progress goes to `control.pullProgress`, the result to the log
+     * Start the download of a model. Its progress goes to `control.pullProgress`, the result to the log.
+     * Throws at once if the download cannot start.
      *
      * @param model name of the model
+     * @param onProgress gets the progress in percent (null if the message has none) and the status of Ollama
+     * @returns the download, which fails if the download fails. The error is reported anyway, so there is no need to wait.
      */
-    #startPull(model: string): void {
+    #startPull(model: string, onProgress?: (percent: number | null, status: string) => void): Promise<void> {
         const client = this.#requireClient();
         if (!isValidModelName(model)) {
             throw new Error(`Invalid model name: ${JSON.stringify(model)}`);
@@ -585,10 +739,16 @@ class AiServer extends utils.Adapter {
             throw new Error(`The download of ${this.#pulling} is still running`);
         }
         this.#pulling = model;
-        void this.#pull(client, model);
+        const download = this.#pull(client, model, onProgress);
+        void download.catch(() => undefined);
+        return download;
     }
 
-    async #pull(client: OllamaClient, model: string): Promise<void> {
+    async #pull(
+        client: OllamaClient,
+        model: string,
+        onProgress?: (percent: number | null, status: string) => void,
+    ): Promise<void> {
         let lastWrite = 0;
         let lastPercent = 0;
         const writeProgress = (percent: number): void => {
@@ -600,7 +760,8 @@ class AiServer extends utils.Adapter {
             await this.setState('control.pull', model, true);
             await this.setState('control.pullProgress', 0, true);
             this.log.info(`Downloading model ${model}`);
-            await client.pull(model, (_status, percent) => {
+            await client.pull(model, (status, percent) => {
+                onProgress?.(percent, status.status ?? '');
                 const now = Date.now();
                 if (percent === null || percent === lastPercent || now - lastWrite < PULL_PROGRESS_INTERVAL_MS) {
                     return;
@@ -616,7 +777,7 @@ class AiServer extends utils.Adapter {
                 await this.setState('control.pullProgress', 0, true);
                 await this.#reportError(`Cannot download model ${model}: ${errorText(error)}`);
             }
-            return;
+            throw error;
         } finally {
             this.#pulling = null;
         }
@@ -638,6 +799,7 @@ class AiServer extends utils.Adapter {
         const request = toChatRequest(message, this.#requestDefaults());
         this.log.debug(`Chat with ${request.model}: ${shorten(request.messages[request.messages.length - 1].content)}`);
         const result = await this.#runRequest(() => client.chat(request));
+        this.#noteUse(result.response.model || request.model);
         this.log.debug(
             `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${shorten(result.response.message?.content ?? '')}`,
         );
@@ -654,6 +816,7 @@ class AiServer extends utils.Adapter {
         const request = toGenerateRequest(message, this.#requestDefaults());
         this.log.debug(`Generate with ${request.model}: ${shorten(request.prompt ?? '')}`);
         const result = await this.#runRequest(() => client.generate(request));
+        this.#noteUse(result.response.model || request.model);
         this.log.debug(
             `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${shorten(result.response.response ?? '')}`,
         );

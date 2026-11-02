@@ -285,6 +285,47 @@ tests.integration(path.join(__dirname, '..'), {
                 expect(await getObject('models.tiny_1b.name')).to.not.exist;
                 expect(await getObject('models.qwen3_0_6b')).to.exist;
             });
+
+            it('remembers the last use of a model', async () => {
+                // the model answered the chats above
+                const state = await getState('models.qwen3_0_6b.lastUsed');
+                expect(state.val).to.be.a('number').within(Date.now() - 5 * 60_000, Date.now());
+                expect((await getObject('models.qwen3_0_6b.lastUsed')).common).to.include({
+                    type: 'number',
+                    role: 'date',
+                    write: false,
+                });
+            });
+
+            it('shows the models in the device manager', async () => {
+                const info = await sendTo('dm:instanceInfo', null);
+                expect(info.apiVersion).to.equal('v3');
+                expect(info.actions.map(action => action.id)).to.deep.equal(['pull']);
+                expect(info.indicators[0].text.en).to.equal('All models: 523 MB');
+
+                const devices = await sendTo('dm:loadDevices', null);
+                expect(devices.add.map(device => device.id)).to.deep.equal(['qwen3:0.6b']);
+                const [card] = devices.add;
+                expect(card.actions.map(action => action.id)).to.deep.equal(['load', 'unload', 'delete']);
+                expect(card.indicators.find(indicator => indicator.id === 'loaded').value).to.deep.equal({
+                    stateId: `${INSTANCE}.models.qwen3_0_6b.loaded`,
+                });
+                // qwen3:0.6b is the default model of this instance
+                expect(card.indicators.some(indicator => indicator.id === 'default')).to.be.true;
+                expect(card.customInfo.schema.items.lastUsed.data.en).to.equal('today');
+            });
+
+            it('deletes a model in the device manager', async function () {
+                this.timeout(10_000);
+                await sendTo('pull', { model: 'tiny:1b' });
+                await waitFor(() => getObject('models.tiny_1b'), 5000, 'the channel of the new model');
+                // the GUI always reads the list before it offers the buttons
+                await sendTo('dm:loadDevices', null);
+                const answer = await sendTo('dm:deviceAction', { deviceId: 'tiny:1b', actionId: 'delete' });
+                expect(answer).to.deep.include({ type: 'result', result: { refresh: 'all' } });
+                expect(mock.models.has('tiny:1b')).to.be.false;
+                await waitFor(async () => !(await getObject('models.tiny_1b')), 5000, 'the channel to be deleted');
+            });
         });
     },
 });

@@ -37,19 +37,23 @@ var __privateWrapper = (obj, member, setter, getter) => ({
     return __privateGet(obj, member, getter);
   }
 });
+var import_node_path = require("node:path");
 var utils = __toESM(require("@iobroker/adapter-core"));
+var import_device_management = require("./lib/device-management");
 var import_models = require("./lib/models");
 var import_objects = require("./lib/objects");
 var import_ollama_client = require("./lib/ollama-client");
 var import_queue = require("./lib/queue");
 var import_requests = require("./lib/requests");
-var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _queue, _status, _version, _stateChats, _AiServer_instances, handleCommand_fn, getBaseUrl_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, setLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, requestDefaults_fn, chat_fn, generate_fn, runRequest_fn, chatFromStates_fn, onQueueChange_fn, loadedModels_fn, setStatus_fn, setError_fn, reportError_fn;
+var import_usage = require("./lib/usage");
+var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _queue, _status, _version, _stateChats, _lastUsed, _lastCleanup, _AiServer_instances, handleCommand_fn, requestTimeoutMs_fn, modelBackend_fn, getBaseUrl_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, findModelId_fn, markUsed_fn, noteUse_fn, deleteModel_fn, deleteUnusedModels_fn, setLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, requestDefaults_fn, chat_fn, generate_fn, runRequest_fn, chatFromStates_fn, onQueueChange_fn, loadedModels_fn, setStatus_fn, setError_fn, reportError_fn;
 const RETRY_MIN_MS = 2e3;
 const RETRY_MAX_MS = 3e4;
 const WAIT_INFO_AFTER_MS = 6e4;
 const MONITOR_INTERVAL_MS = 3e4;
 const PROBE_TIMEOUT_MS = 5e3;
 const PULL_PROGRESS_INTERVAL_MS = 1e3;
+const CLEANUP_INTERVAL_MS = 60 * 6e4;
 function errorText(error) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -88,6 +92,10 @@ class AiServer extends utils.Adapter {
     __privateAdd(this, _version, "");
     /** Number of running requests started via `chat.prompt` */
     __privateAdd(this, _stateChats, 0);
+    /** Time of the last use of the models by object ID, as in the states `models.<id>.lastUsed` */
+    __privateAdd(this, _lastUsed, /* @__PURE__ */ new Map());
+    /** Time of the last search for unused models */
+    __privateAdd(this, _lastCleanup, 0);
     this.on("ready", this.onReady.bind(this));
     this.on("stateChange", this.onStateChange.bind(this));
     this.on("message", this.onMessage.bind(this));
@@ -99,6 +107,12 @@ class AiServer extends utils.Adapter {
    * The plugin is initialized before this method is called, so a missing image is already pulled.
    */
   async onReady() {
+    try {
+      await utils.I18n.init((0, import_node_path.join)(__dirname, "..", "admin"), this);
+    } catch (error) {
+      this.log.warn(`Cannot read the translations: ${errorText(error)}`);
+    }
+    new import_device_management.ModelManagement(this, __privateMethod(this, _AiServer_instances, modelBackend_fn).call(this));
     await this.setState("info.connection", false, true);
     await __privateMethod(this, _AiServer_instances, setStatus_fn).call(this, "starting");
     __privateSet(this, _queue, new import_queue.RequestQueue({
@@ -125,7 +139,7 @@ class AiServer extends utils.Adapter {
     }
     __privateSet(this, _client, new import_ollama_client.OllamaClient({
       baseUrl,
-      timeoutMs: (Number(this.config.requestTimeout) || 300) * 1e3,
+      timeoutMs: __privateMethod(this, _AiServer_instances, requestTimeoutMs_fn).call(this),
       timers: {
         setTimeout: (callback, ms) => this.setTimeout(callback, ms),
         clearTimeout: (handle) => this.clearTimeout(handle)
@@ -170,7 +184,7 @@ class AiServer extends utils.Adapter {
       if (localId === "control.pull") {
         const model = typeof state.val === "string" ? state.val.trim() : "";
         if (model) {
-          __privateMethod(this, _AiServer_instances, startPull_fn).call(this, model);
+          void __privateMethod(this, _AiServer_instances, startPull_fn).call(this, model);
         } else {
           await this.setState(localId, "", true);
         }
@@ -207,7 +221,7 @@ class AiServer extends utils.Adapter {
    * @param obj the message
    */
   async onMessage(obj) {
-    if (!(obj == null ? void 0 : obj.command)) {
+    if (!(obj == null ? void 0 : obj.command) || obj.command.startsWith("dm:")) {
       return;
     }
     let answer;
@@ -239,6 +253,8 @@ _queue = new WeakMap();
 _status = new WeakMap();
 _version = new WeakMap();
 _stateChats = new WeakMap();
+_lastUsed = new WeakMap();
+_lastCleanup = new WeakMap();
 _AiServer_instances = new WeakSet();
 handleCommand_fn = async function(command, message) {
   var _a, _b, _c, _d;
@@ -246,15 +262,11 @@ handleCommand_fn = async function(command, message) {
     case "listModels":
       return __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
     case "pull":
-      __privateMethod(this, _AiServer_instances, startPull_fn).call(this, getModel(message));
+      void __privateMethod(this, _AiServer_instances, startPull_fn).call(this, getModel(message));
       return { started: true };
-    case "deleteModel": {
-      const model = getModel(message);
-      await __privateMethod(this, _AiServer_instances, requireClient_fn).call(this).deleteModel(model);
-      this.log.info(`Model ${model} deleted`);
-      await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
+    case "deleteModel":
+      await __privateMethod(this, _AiServer_instances, deleteModel_fn).call(this, getModel(message));
       return { deleted: true };
-    }
     case "loadModel":
       await __privateMethod(this, _AiServer_instances, setLoaded_fn).call(this, getModel(message), true);
       return { loaded: true };
@@ -300,6 +312,34 @@ handleCommand_fn = async function(command, message) {
     default:
       throw new Error(`Unknown command "${command}"`);
   }
+};
+/** Timeout of a request to the model in ms */
+requestTimeoutMs_fn = function() {
+  return (Number(this.config.requestTimeout) || 300) * 1e3;
+};
+/** What the device manager of the admin needs from the adapter */
+modelBackend_fn = function() {
+  return {
+    listModels: () => __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this),
+    getChannelId: (name) => {
+      const id = __privateMethod(this, _AiServer_instances, findModelId_fn).call(this, name);
+      return id ? `${this.namespace}.models.${id}` : void 0;
+    },
+    getLastUsed: (name) => {
+      const id = __privateMethod(this, _AiServer_instances, findModelId_fn).call(this, name);
+      return id ? __privateGet(this, _lastUsed).get(id) : void 0;
+    },
+    getSettings: () => ({
+      defaultModel: this.config.defaultModel || "",
+      deleteUnusedDays: Number(this.config.deleteUnusedDays) || 0,
+      requestTimeoutMs: __privateMethod(this, _AiServer_instances, requestTimeoutMs_fn).call(this)
+    }),
+    setLoaded: (name, load) => __privateMethod(this, _AiServer_instances, setLoaded_fn).call(this, name, load),
+    deleteModel: (name) => __privateMethod(this, _AiServer_instances, deleteModel_fn).call(this, name),
+    pull: async (name, onProgress) => {
+      await __privateMethod(this, _AiServer_instances, startPull_fn).call(this, name, onProgress);
+    }
+  };
 };
 /** The URL of the Ollama API without trailing slash, or null if the configured URL is invalid */
 getBaseUrl_fn = function() {
@@ -394,6 +434,7 @@ onConnected_fn = async function(version) {
     await this.subscribeStatesAsync("chat.prompt");
   }
   __privateSet(this, _monitorTimer, this.setInterval(() => void __privateMethod(this, _AiServer_instances, monitor_fn).call(this), MONITOR_INTERVAL_MS));
+  __privateSet(this, _lastCleanup, Date.now());
   if (models) {
     __privateMethod(this, _AiServer_instances, ensureDefaultModel_fn).call(this, models);
   }
@@ -414,6 +455,7 @@ monitor_fn = async function() {
       return;
     }
     await __privateMethod(this, _AiServer_instances, updateLoaded_fn).call(this, running);
+    await __privateMethod(this, _AiServer_instances, deleteUnusedModels_fn).call(this, running);
   } catch (error) {
     this.log.warn(`Cannot update the models: ${errorText(error)}`);
   } finally {
@@ -454,6 +496,7 @@ syncModels_fn = async function() {
   const [models, running] = await Promise.all([client.listModels(), client.listRunningModels()]);
   const infos = (0, import_models.toModelInfos)(models, running);
   const current = /* @__PURE__ */ new Map();
+  const now = Date.now();
   for (const info of infos) {
     const id = (0, import_objects.toModelId)(info.name, this.FORBIDDEN_CHARS);
     const other = current.get(id);
@@ -473,6 +516,17 @@ syncModels_fn = async function() {
     for (const [key, value] of Object.entries(info)) {
       await this.setStateChangedAsync(`models.${id}.${key}`, value, true);
     }
+    if (!__privateGet(this, _lastUsed).has(id)) {
+      const state = await this.getStateAsync(`models.${id}.lastUsed`);
+      const known = typeof (state == null ? void 0 : state.val) === "number" && state.val > 0 ? state.val : 0;
+      __privateGet(this, _lastUsed).set(id, known || now);
+      if (!known) {
+        await this.setState(`models.${id}.lastUsed`, now, true);
+      }
+    }
+    if (info.loaded) {
+      await __privateMethod(this, _AiServer_instances, markUsed_fn).call(this, id, now);
+    }
   }
   const prefix = `${this.namespace}.models.`;
   const channels = await this.getObjectViewAsync("system", "channel", {
@@ -484,6 +538,7 @@ syncModels_fn = async function() {
     if (!id.includes(".") && !current.has(id)) {
       this.log.debug(`Model ${id} does not exist any more, deleting its objects`);
       await this.delObjectAsync(`models.${id}`, { recursive: true });
+      __privateGet(this, _lastUsed).delete(id);
     }
   }
   __privateSet(this, _models, current);
@@ -498,6 +553,71 @@ updateLoaded_fn = async function(running) {
   for (const [id, name] of __privateGet(this, _models)) {
     const loaded = running.some((item) => (0, import_models.sameModel)(item.name || item.model, name));
     await this.setStateChangedAsync(`models.${id}.loaded`, loaded, true);
+    if (loaded) {
+      await __privateMethod(this, _AiServer_instances, markUsed_fn).call(this, id);
+    }
+  }
+};
+/**
+ * Object ID of a downloaded model
+ *
+ * @param name name of the model, as given or as Ollama reports it
+ */
+findModelId_fn = function(name) {
+  for (const [id, known] of __privateGet(this, _models)) {
+    if ((0, import_models.sameModel)(known, name)) {
+      return id;
+    }
+  }
+  return void 0;
+};
+markUsed_fn = async function(id, now = Date.now()) {
+  var _a;
+  if (now - ((_a = __privateGet(this, _lastUsed).get(id)) != null ? _a : 0) < import_usage.LAST_USED_RESOLUTION_MS) {
+    return;
+  }
+  __privateGet(this, _lastUsed).set(id, now);
+  await this.setState(`models.${id}.lastUsed`, now, true);
+};
+/**
+ * A request was answered by the model: it is in use
+ *
+ * @param name the model as named in the answer
+ */
+noteUse_fn = function(name) {
+  const id = __privateMethod(this, _AiServer_instances, findModelId_fn).call(this, name);
+  if (id) {
+    __privateMethod(this, _AiServer_instances, markUsed_fn).call(this, id).catch((error) => this.log.debug(`Cannot write the last use: ${errorText(error)}`));
+  }
+};
+deleteModel_fn = async function(model) {
+  await __privateMethod(this, _AiServer_instances, requireClient_fn).call(this).deleteModel(model);
+  this.log.info(`Model ${model} deleted`);
+  await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
+};
+deleteUnusedModels_fn = async function(running) {
+  const days = Number(this.config.deleteUnusedDays) || 0;
+  const now = Date.now();
+  if (days <= 0 || now - __privateGet(this, _lastCleanup) < CLEANUP_INTERVAL_MS) {
+    return;
+  }
+  __privateSet(this, _lastCleanup, now);
+  const models = [...__privateGet(this, _models)].map(([id, name]) => ({
+    name,
+    loaded: running.some((item) => (0, import_models.sameModel)(item.name || item.model, name)),
+    lastUsed: __privateGet(this, _lastUsed).get(id)
+  }));
+  const unused = (0, import_usage.findUnusedModels)(models, now, days, [this.config.defaultModel || "", __privateGet(this, _pulling) || ""]);
+  for (const model of unused) {
+    try {
+      await __privateMethod(this, _AiServer_instances, requireClient_fn).call(this).deleteModel(model);
+      this.log.info(`Model ${model} deleted, because it was not used for ${days} days`);
+    } catch (error) {
+      await __privateMethod(this, _AiServer_instances, reportError_fn).call(this, `Cannot delete the unused model ${model}: ${errorText(error)}`);
+    }
+  }
+  if (unused.length) {
+    await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
   }
 };
 setLoaded_fn = async function(model, load) {
@@ -522,17 +642,20 @@ ensureDefaultModel_fn = function(models) {
   }
   this.log.info(`The default model ${model} is not downloaded yet, downloading it now`);
   try {
-    __privateMethod(this, _AiServer_instances, startPull_fn).call(this, model);
+    void __privateMethod(this, _AiServer_instances, startPull_fn).call(this, model);
   } catch (error) {
     void __privateMethod(this, _AiServer_instances, reportError_fn).call(this, `Cannot download the default model: ${errorText(error)}`);
   }
 };
 /**
- * Start the download of a model. Its progress goes to `control.pullProgress`, the result to the log
+ * Start the download of a model. Its progress goes to `control.pullProgress`, the result to the log.
+ * Throws at once if the download cannot start.
  *
  * @param model name of the model
+ * @param onProgress gets the progress in percent (null if the message has none) and the status of Ollama
+ * @returns the download, which fails if the download fails. The error is reported anyway, so there is no need to wait.
  */
-startPull_fn = function(model) {
+startPull_fn = function(model, onProgress) {
   const client = __privateMethod(this, _AiServer_instances, requireClient_fn).call(this);
   if (!(0, import_ollama_client.isValidModelName)(model)) {
     throw new Error(`Invalid model name: ${JSON.stringify(model)}`);
@@ -541,9 +664,11 @@ startPull_fn = function(model) {
     throw new Error(`The download of ${__privateGet(this, _pulling)} is still running`);
   }
   __privateSet(this, _pulling, model);
-  void __privateMethod(this, _AiServer_instances, pull_fn).call(this, client, model);
+  const download = __privateMethod(this, _AiServer_instances, pull_fn).call(this, client, model, onProgress);
+  void download.catch(() => void 0);
+  return download;
 };
-pull_fn = async function(client, model) {
+pull_fn = async function(client, model, onProgress) {
   let lastWrite = 0;
   let lastPercent = 0;
   const writeProgress = (percent) => {
@@ -555,7 +680,9 @@ pull_fn = async function(client, model) {
     await this.setState("control.pull", model, true);
     await this.setState("control.pullProgress", 0, true);
     this.log.info(`Downloading model ${model}`);
-    await client.pull(model, (_status2, percent) => {
+    await client.pull(model, (status, percent) => {
+      var _a;
+      onProgress == null ? void 0 : onProgress(percent, (_a = status.status) != null ? _a : "");
       const now = Date.now();
       if (percent === null || percent === lastPercent || now - lastWrite < PULL_PROGRESS_INTERVAL_MS) {
         return;
@@ -571,7 +698,7 @@ pull_fn = async function(client, model) {
       await this.setState("control.pullProgress", 0, true);
       await __privateMethod(this, _AiServer_instances, reportError_fn).call(this, `Cannot download model ${model}: ${errorText(error)}`);
     }
-    return;
+    throw error;
   } finally {
     __privateSet(this, _pulling, null);
   }
@@ -587,6 +714,7 @@ chat_fn = async function(message) {
   const request = (0, import_requests.toChatRequest)(message, __privateMethod(this, _AiServer_instances, requestDefaults_fn).call(this));
   this.log.debug(`Chat with ${request.model}: ${(0, import_requests.shorten)(request.messages[request.messages.length - 1].content)}`);
   const result = await __privateMethod(this, _AiServer_instances, runRequest_fn).call(this, () => client.chat(request));
+  __privateMethod(this, _AiServer_instances, noteUse_fn).call(this, result.response.model || request.model);
   this.log.debug(
     `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${(0, import_requests.shorten)((_b = (_a = result.response.message) == null ? void 0 : _a.content) != null ? _b : "")}`
   );
@@ -598,6 +726,7 @@ generate_fn = async function(message) {
   const request = (0, import_requests.toGenerateRequest)(message, __privateMethod(this, _AiServer_instances, requestDefaults_fn).call(this));
   this.log.debug(`Generate with ${request.model}: ${(0, import_requests.shorten)((_a = request.prompt) != null ? _a : "")}`);
   const result = await __privateMethod(this, _AiServer_instances, runRequest_fn).call(this, () => client.generate(request));
+  __privateMethod(this, _AiServer_instances, noteUse_fn).call(this, result.response.model || request.model);
   this.log.debug(
     `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${(0, import_requests.shorten)((_b = result.response.response) != null ? _b : "")}`
   );

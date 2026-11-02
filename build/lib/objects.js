@@ -32,6 +32,7 @@ const MODEL_STATES = {
   parameterSize: { name: "Number of parameters", type: "string", role: "text", read: true, write: false },
   quantization: { name: "Quantization", type: "string", role: "text", read: true, write: false },
   loaded: { name: "Loaded into memory", type: "boolean", role: "indicator", read: true, write: false },
+  lastUsed: { name: "Last use (loaded or answered)", type: "number", role: "date", read: true, write: false },
   load: { name: "Load the model into memory", type: "boolean", role: "button", read: false, write: true },
   unload: { name: "Unload the model from memory", type: "boolean", role: "button", read: false, write: true }
 };

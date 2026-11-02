@@ -9,7 +9,8 @@ Was der Adapter macht:
 
 - startet Ollama in einem Docker-Container (über `@iobroker/plugin-docker`) oder verbindet sich mit einem Ollama-Server,
   der bereits im Netz läuft;
-- lädt Modelle herunter, lädt sie in den Speicher, entlädt und löscht sie und zeigt sie als Objekte an;
+- lädt Modelle herunter, lädt sie in den Speicher, entlädt und löscht sie, zeigt sie als Objekte und im Reiter
+  "Modelle" mit ihrer Größe an und löscht auf Wunsch Modelle, die länger nicht benutzt wurden;
 - beantwortet Anfragen an das Modell über `sendTo` und über Datenpunkte;
 - zeigt den Zustand des Servers, die Warteschlange und die Geschwindigkeit der letzten Antwort.
 
@@ -25,7 +26,7 @@ Andere Adapter (javascript, admin, ai-toolbox, ai-assistant) können den Ollama-
 
 ## Voraussetzungen
 
-- js-controller 7.1.0 oder neuer, admin 7.7.2 oder neuer, Node.js 22 oder neuer.
+- js-controller 7.1.0 oder neuer, admin 7.8.21 oder neuer, Node.js 22.19 oder neuer.
 - Für das Backend "Docker-Container":
   - ein Linux-Host (z. B. Raspberry Pi OS, Debian, Ubuntu) mit Docker Engine 20.10 oder neuer;
   - der Benutzer `iobroker` braucht Zugriff auf den Docker-Socket. Ihn zur Gruppe `docker` hinzufügen und ioBroker
@@ -69,6 +70,7 @@ Reiter **Allgemein**:
 | Backend                          | "Docker-Container (von ioBroker verwaltet)" oder "Externer Ollama-Server"              |
 | URL des externen Servers         | nur beim externen Server, z. B. `http://192.168.1.50:11434`                            |
 | Standardmodell                   | für Anfragen ohne Modellangabe; fehlt es, wird es beim Start heruntergeladen (siehe unten) |
+| Nicht benutzte Modelle löschen nach | Anzahl Tage, `0` (Standard) = nie, siehe [Nicht benutzte Modelle löschen](#nicht-benutzte-modelle-löschen) |
 | Zeitlimit pro Anfrage            | maximale Dauer einer Anfrage an das Modell in Sekunden (Standard 300)                  |
 | Parallele Anfragen               | wie viele Anfragen gleichzeitig an das Modell gehen (Standard 1)                       |
 | Maximale Länge der Warteschlange | warten mehr Anfragen, schlägt jede weitere sofort fehl (Standard 10)                   |
@@ -100,9 +102,44 @@ Ist das Standardmodell noch nicht heruntergeladen, lädt der Adapter es beim Sta
 
 Vorher den freien Arbeitsspeicher prüfen, siehe [Arbeitsspeicher](#arbeitsspeicher).
 
-Für weitere Modelle den Namen in `ai-server.0.control.pull` schreiben oder `sendTo` nutzen (siehe unten).
-Der Fortschritt steht in `control.pullProgress` (0-100 %), Fehler im Log und in `info.lastError`.
-Es läuft immer nur ein Download gleichzeitig.
+Für weitere Modelle "Modell herunterladen" im Reiter "Modelle" nutzen (siehe unten), den Namen in
+`ai-server.0.control.pull` schreiben oder `sendTo` nutzen. Der Fortschritt steht in `control.pullProgress` (0-100 %),
+Fehler im Log und in `info.lastError`. Es läuft immer nur ein Download gleichzeitig.
+
+### Reiter "Modelle"
+
+Der Reiter "Modelle" in den Instanzeinstellungen zeigt für jedes heruntergeladene Modell eine Karte mit:
+
+- der Größe auf der Festplatte, der Anzahl der Parameter und der Quantisierung;
+- ob das Modell geladen ist und ob es das Standardmodell ist;
+- wann es zuletzt benutzt wurde und, wenn [Nicht benutzte Modelle löschen](#nicht-benutzte-modelle-löschen) an ist,
+  wann es gelöscht wird;
+- Knöpfen zum Laden, Entladen und Löschen. Vor dem Löschen fragt ein Dialog nach und zeigt, wie viel Platz frei wird.
+
+Über den Karten steht die Größe aller Modelle zusammen, und "Modell herunterladen" lädt ein neues Modell mit
+Fortschrittsdialog herunter. Wird der Browser währenddessen geschlossen, läuft der Download weiter. Dieselbe Ansicht
+gibt es im Reiter "Geräte" von admin, wenn dieser Reiter eingeschaltet ist.
+
+Die Kennzeichen "geladen" und "Standardmodell" auf den Karten brauchen admin 8.0.1 oder neuer; ältere Versionen zeigen
+sie nicht an.
+
+### Nicht benutzte Modelle löschen
+
+Mit "Nicht benutzte Modelle löschen nach" (Reiter "Allgemein") werden Modelle, die die angegebene Anzahl Tage nicht
+benutzt wurden, von der Festplatte gelöscht, um Platz zu sparen. Ein Modell gilt als benutzt:
+
+- solange es geladen ist; das wird alle 30 Sekunden geprüft, auch bei Anfragen, die andere Adapter direkt an Ollama
+  schicken;
+- wenn es eine Anfrage über diesen Adapter beantwortet (`chat`, `generate`, `chat.prompt`).
+
+Der Zeitpunkt der letzten Benutzung steht in `models.<id>.lastUsed`. Ein Modell, das der Adapter zum ersten Mal sieht,
+gilt in diesem Moment als benutzt; die Tage zählen also ab dem Einschalten der Option bzw. ab dem Herunterladen.
+Geprüft wird einmal pro Stunde, das erste Mal eine Stunde nach der Verbindung mit Ollama. Das Standardmodell, geladene
+Modelle und ein Modell, das gerade heruntergeladen wird, werden nie automatisch gelöscht.
+
+Nicht als Benutzung erkannt werden Anfragen bei gestoppter Instanz und kurze Anfragen anderer Adapter an ein Modell, das
+danach sofort entladen wird ("Modell im Speicher halten" = `0`). Gelöschte Modelle können jederzeit neu heruntergeladen
+werden.
 
 Jedes heruntergeladene Modell bekommt einen Kanal unter `models`, z. B. `models.qwen3_4b` für `qwen3:4b`:
 
@@ -113,6 +150,7 @@ Jedes heruntergeladene Modell bekommt einen Kanal unter `models`, z. B. `models.
 | `parameterSize` | Anzahl der Parameter, z. B. `4.0B`            |
 | `quantization`  | z. B. `Q4_K_M`                                |
 | `loaded`        | das Modell ist im Speicher                    |
+| `lastUsed`      | Zeitpunkt der letzten Benutzung (geladen oder geantwortet) |
 | `load`          | Taster: Modell in den Speicher laden          |
 | `unload`        | Taster: Modell aus dem Speicher entfernen     |
 
