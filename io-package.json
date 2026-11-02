@@ -270,6 +270,19 @@
             "native": {}
         },
         {
+            "_id": "chat.think",
+            "type": "state",
+            "common": {
+                "role": "switch.enable",
+                "name": "Let a thinking model think before answering (slower)",
+                "type": "boolean",
+                "read": true,
+                "write": true,
+                "def": false
+            },
+            "native": {}
+        },
+        {
             "_id": "chat.prompt",
             "type": "state",
             "common": {

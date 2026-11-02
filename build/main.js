@@ -177,7 +177,7 @@ class AiServer extends utils.Adapter {
       } else if (localId === "control.refresh") {
         await this.setState(localId, state.val, true);
         await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
-      } else if (localId === "chat.model" || localId === "chat.system") {
+      } else if (localId === "chat.model" || localId === "chat.system" || localId === "chat.think") {
         await this.setState(localId, state.val, true);
       } else if (localId === "chat.prompt") {
         const prompt = typeof state.val === "string" ? state.val : "";
@@ -390,6 +390,7 @@ onConnected_fn = async function(version) {
     await this.subscribeStatesAsync("models.*.unload");
     await this.subscribeStatesAsync("chat.model");
     await this.subscribeStatesAsync("chat.system");
+    await this.subscribeStatesAsync("chat.think");
     await this.subscribeStatesAsync("chat.prompt");
   }
   __privateSet(this, _monitorTimer, this.setInterval(() => void __privateMethod(this, _AiServer_instances, monitor_fn).call(this), MONITOR_INTERVAL_MS));
@@ -622,13 +623,15 @@ chatFromStates_fn = async function(prompt) {
   var _a, _b;
   const model = await this.getStateAsync("chat.model");
   const system = await this.getStateAsync("chat.system");
+  const think = await this.getStateAsync("chat.think");
   __privateWrapper(this, _stateChats)._++;
   await this.setState("chat.running", true, true);
   try {
     const { response } = await __privateMethod(this, _AiServer_instances, chat_fn).call(this, {
       model: typeof (model == null ? void 0 : model.val) === "string" ? model.val : "",
       system: typeof (system == null ? void 0 : system.val) === "string" && system.val.trim() ? system.val : void 0,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: prompt }],
+      think: !!(think == null ? void 0 : think.val)
     });
     await this.setState("chat.response", (_b = (_a = response.message) == null ? void 0 : _a.content) != null ? _b : "", true);
   } finally {

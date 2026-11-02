@@ -103,8 +103,10 @@ if (answer.error) {
 ### With states
 
 Write a question into `chat.prompt`; the answer appears in `chat.response`. `chat.running` is `true` meanwhile.
-`chat.model` selects the model (empty = default model) and `chat.system` sets a system prompt; both are read when the
-question is written. Every question is answered on its own, without the previous ones.
+`chat.model` selects the model (empty = default model) and `chat.system` sets a system prompt. Thinking is switched
+off, as it takes many times longer; set `chat.think` to `true` to let a thinking model think first (a model that cannot
+think then answers with an error). All three are read when the question is written. Every question is answered on its
+own, without the previous ones.
 
 ### Queue and metrics
 

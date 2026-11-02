@@ -187,7 +187,7 @@ class AiServer extends utils.Adapter {
             } else if (localId === 'control.refresh') {
                 await this.setState(localId, state.val, true);
                 await this.#refreshModels();
-            } else if (localId === 'chat.model' || localId === 'chat.system') {
+            } else if (localId === 'chat.model' || localId === 'chat.system' || localId === 'chat.think') {
                 // read when the next prompt is written
                 await this.setState(localId, state.val, true);
             } else if (localId === 'chat.prompt') {
@@ -409,6 +409,7 @@ class AiServer extends utils.Adapter {
             await this.subscribeStatesAsync('models.*.unload');
             await this.subscribeStatesAsync('chat.model');
             await this.subscribeStatesAsync('chat.system');
+            await this.subscribeStatesAsync('chat.think');
             await this.subscribeStatesAsync('chat.prompt');
         }
         this.#monitorTimer = this.setInterval(() => void this.#monitor(), MONITOR_INTERVAL_MS);
@@ -686,12 +687,14 @@ class AiServer extends utils.Adapter {
     /**
      * A prompt written into `chat.prompt`: a single question without history, with the model of `chat.model`
      * and the system prompt of `chat.system`. The answer goes to `chat.response`.
+     * Thinking is switched off unless `chat.think` is set: on a small machine it takes many times longer.
      *
      * @param prompt the question
      */
     async #chatFromStates(prompt: string): Promise<void> {
         const model = await this.getStateAsync('chat.model');
         const system = await this.getStateAsync('chat.system');
+        const think = await this.getStateAsync('chat.think');
         this.#stateChats++;
         await this.setState('chat.running', true, true);
         try {
@@ -699,6 +702,7 @@ class AiServer extends utils.Adapter {
                 model: typeof model?.val === 'string' ? model.val : '',
                 system: typeof system?.val === 'string' && system.val.trim() ? system.val : undefined,
                 messages: [{ role: 'user', content: prompt }] satisfies OllamaMessage[],
+                think: !!think?.val,
             });
             await this.setState('chat.response', response.message?.content ?? '', true);
         } finally {
