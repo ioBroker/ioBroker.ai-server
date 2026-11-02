@@ -157,7 +157,7 @@ async function readError(response) {
   return text.trim() || `HTTP ${response.status} ${response.statusText}`.trim();
 }
 const _OllamaClient = class _OllamaClient {
-  /** @param options base URL, timeout and optional replacements for fetch and the timers */
+  /** @param options base URL, timeout, timers and an optional replacement for fetch */
   constructor(options) {
     __privateAdd(this, _OllamaClient_instances);
     __publicField(this, "baseUrl");
@@ -165,14 +165,11 @@ const _OllamaClient = class _OllamaClient {
     __privateAdd(this, _fetch);
     __privateAdd(this, _timers);
     __privateAdd(this, _controllers, /* @__PURE__ */ new Set());
-    var _a, _b;
+    var _a;
     this.baseUrl = options.baseUrl.trim().replace(/\/+$/, "");
     __privateSet(this, _timeoutMs, options.timeoutMs);
     __privateSet(this, _fetch, (_a = options.fetch) != null ? _a : fetch);
-    __privateSet(this, _timers, (_b = options.timers) != null ? _b : {
-      setTimeout: (callback, ms) => setTimeout(callback, ms),
-      clearTimeout: (handle) => clearTimeout(handle)
-    });
+    __privateSet(this, _timers, options.timers);
   }
   /**
    * `GET /api/version`

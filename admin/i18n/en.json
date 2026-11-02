@@ -31,5 +31,7 @@
     "help_maxQueue": "Requests beyond this number are rejected immediately with an error",
     "help_parallel": "How many requests are sent to the model at the same time. Further requests wait in the queue.",
     "help_requestTimeout": "Maximum duration of a single request to the model",
-    "help_stopOnUnload": "If disabled, the loaded model stays in memory when the adapter restarts"
+    "help_stopOnUnload": "If disabled, the loaded model stays in memory when the adapter restarts",
+    "placeholder_defaultModel": "qwen3:4b",
+    "placeholder_externalUrl": "http://192.168.1.50:11434"
 }

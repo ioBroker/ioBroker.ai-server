@@ -189,9 +189,9 @@ export interface OllamaGenerateResponse extends OllamaStats {
 /** Timer functions, so that the adapter can pass its own timers, which are cleared on unload */
 export interface Timers {
     /** Like the global setTimeout */
-    setTimeout(callback: () => void, ms: number): unknown;
+    setTimeout: (callback: () => void, ms: number) => unknown;
     /** Like the global clearTimeout */
-    clearTimeout(handle: unknown): void;
+    clearTimeout: (handle: unknown) => void;
 }
 
 /** Options of the OllamaClient */
@@ -202,8 +202,8 @@ export interface OllamaClientOptions {
     timeoutMs: number;
     /** Replaces the global fetch, used by the tests */
     fetch?: typeof fetch;
-    /** Replaces the global timers */
-    timers?: Timers;
+    /** Timers of the adapter (`this.setTimeout`), so that they are cleared on unload */
+    timers: Timers;
 }
 
 /** Error of a request to Ollama, with the error text of Ollama if it answered */
@@ -329,15 +329,12 @@ export class OllamaClient {
     readonly #timers: Timers;
     readonly #controllers = new Set<AbortController>();
 
-    /** @param options base URL, timeout and optional replacements for fetch and the timers */
+    /** @param options base URL, timeout, timers and an optional replacement for fetch */
     constructor(options: OllamaClientOptions) {
         this.baseUrl = options.baseUrl.trim().replace(/\/+$/, '');
         this.#timeoutMs = options.timeoutMs;
         this.#fetch = options.fetch ?? fetch;
-        this.#timers = options.timers ?? {
-            setTimeout: (callback, ms) => setTimeout(callback, ms),
-            clearTimeout: handle => clearTimeout(handle as NodeJS.Timeout),
-        };
+        this.#timers = options.timers;
     }
 
     /**

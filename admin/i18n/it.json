@@ -31,5 +31,7 @@
     "help_maxQueue": "Le richieste oltre questo numero vengono respinte immediatamente con un errore",
     "help_parallel": "Quante richieste vengono inviate al modello contemporaneamente. Ulteriori richieste attendono in coda.",
     "help_requestTimeout": "Durata massima di una singola richiesta al modello",
-    "help_stopOnUnload": "Se disabilitato, il modello caricato rimane in memoria al riavvio dell'adattatore"
+    "help_stopOnUnload": "Se disabilitato, il modello caricato rimane in memoria al riavvio dell'adattatore",
+    "placeholder_defaultModel": "qwen3:4b",
+    "placeholder_externalUrl": "http://192.168.1.50:11434"
 }

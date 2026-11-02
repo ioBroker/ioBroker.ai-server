@@ -31,5 +31,7 @@
     "help_maxQueue": "超过此数量的请求将立即被拒绝并出现错误",
     "help_parallel": "同时向模型发送多少个请求。更多请求在队列中等待。",
     "help_requestTimeout": "对模型的单个请求的最大持续时间",
-    "help_stopOnUnload": "如果禁用，适配器重新启动时加载的模型将保留在内存中"
+    "help_stopOnUnload": "如果禁用，适配器重新启动时加载的模型将保留在内存中",
+    "placeholder_defaultModel": "qwen3:4b",
+    "placeholder_externalUrl": "http://192.168.1.50:11434"
 }

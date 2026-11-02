@@ -7,7 +7,14 @@ import {
     type OllamaPullStatus,
     PullProgress,
     toKeepAlive,
+    type Timers,
 } from './ollama-client';
+
+/** The adapter passes its own timers, the tests use the global ones */
+const timers: Timers = {
+    setTimeout: (callback, ms) => setTimeout(callback, ms),
+    clearTimeout: handle => clearTimeout(handle as NodeJS.Timeout),
+};
 
 interface FetchCall {
     url: string;
@@ -153,7 +160,7 @@ describe('ollama-client', () => {
     describe('OllamaClient', () => {
         it('removes a trailing slash from the base URL', async () => {
             const { fetch, calls } = fakeFetch(() => json({ version: '0.40.11' }));
-            const client = new OllamaClient({ baseUrl: 'http://127.0.0.1:11434/', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://127.0.0.1:11434/', timeoutMs: 1000, fetch, timers });
             expect(await client.getVersion()).to.equal('0.40.11');
             expect(calls).to.deep.equal([
                 { url: 'http://127.0.0.1:11434/api/version', method: 'GET', body: undefined },
@@ -166,14 +173,14 @@ describe('ollama-client', () => {
                     ? json({ models: [{ name: 'qwen3:8b', model: 'qwen3:8b', size: 5 }] })
                     : json({ models: [] }),
             );
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             expect((await client.listModels()).map(m => m.name)).to.deep.equal(['qwen3:8b']);
             expect(await client.listRunningModels()).to.deep.equal([]);
         });
 
         it('reports the error text of Ollama', async () => {
             const { fetch } = fakeFetch(() => json({ error: 'model "x" not found' }, 404));
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             const error = (await rejection(client.deleteModel('x'))) as OllamaError;
             expect(error).to.be.instanceOf(OllamaError);
             expect(error.message).to.equal('model "x" not found');
@@ -185,19 +192,19 @@ describe('ollama-client', () => {
                 Promise.reject(
                     new TypeError('fetch failed', { cause: { code: 'ECONNREFUSED' } }),
                 )) as typeof globalThis.fetch;
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             const error = await rejection(client.getVersion());
             expect(error.message).to.equal('Cannot reach Ollama at http://x: ECONNREFUSED');
         });
 
         it('aborts a request after the timeout', async () => {
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 20, fetch: hangingFetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 20, fetch: hangingFetch, timers });
             const error = await rejection(client.getVersion());
             expect(error.message).to.equal('Ollama did not answer within 0 s');
         });
 
         it('aborts all running requests', async () => {
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 60000, fetch: hangingFetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 60000, fetch: hangingFetch, timers });
             const running = rejection(client.getVersion());
             client.abortAll();
             expect((await running).message).to.equal('The request to Ollama was aborted');
@@ -205,7 +212,7 @@ describe('ollama-client', () => {
 
         it('checks the model name before sending anything', async () => {
             const { fetch, calls } = fakeFetch(() => json({}));
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             const error = await rejection(client.loadModel('bad name', '5m'));
             expect(error).to.be.instanceOf(OllamaError);
             expect(calls).to.have.length(0);
@@ -213,7 +220,7 @@ describe('ollama-client', () => {
 
         it('loads and unloads a model', async () => {
             const { fetch, calls } = fakeFetch(() => json({ done: true }));
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             await client.loadModel('qwen3:8b', '-1');
             await client.unloadModel('qwen3:8b');
             expect(calls.map(c => c.body)).to.deep.equal([
@@ -228,7 +235,7 @@ describe('ollama-client', () => {
                     ? json({ model: 'm', message: { role: 'assistant', content: 'Hi' }, done: true })
                     : json({ model: 'm', response: 'Hi', done: true }),
             );
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             const chat = await client.chat({ model: 'm', messages: [{ role: 'user', content: 'Hello' }] });
             const generate = await client.generate({ model: 'm', prompt: 'Hello' });
             expect(chat.message.content).to.equal('Hi');
@@ -244,7 +251,7 @@ describe('ollama-client', () => {
                     'leted":50}\n{"status":"verifying sha256 digest"}\n{"status":"success"}',
                 ]),
             );
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             const seen: [string | undefined, number | null][] = [];
             await client.pull('qwen3:8b', (status: OllamaPullStatus, percent) => seen.push([status.status, percent]));
             expect(calls[0].body).to.deep.equal({ model: 'qwen3:8b', stream: true });
@@ -261,14 +268,14 @@ describe('ollama-client', () => {
             const { fetch } = fakeFetch(() =>
                 stream(['{"status":"pulling manifest"}\n{"error":"pull model manifest: file does not exist"}\n']),
             );
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             const error = await rejection(client.pull('nothing'));
             expect(error.message).to.equal('pull model manifest: file does not exist');
         });
 
         it('fails a pull that ends without success', async () => {
             const { fetch } = fakeFetch(() => stream(['{"status":"pulling manifest"}\n']));
-            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch });
+            const client = new OllamaClient({ baseUrl: 'http://x', timeoutMs: 1000, fetch, timers });
             const error = await rejection(client.pull('qwen3:8b'));
             expect(error.message).to.equal('The download of qwen3:8b ended without success');
         });

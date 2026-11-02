@@ -24,7 +24,7 @@
                     "type": "text",
                     "label": "External server URL",
                     "help": "help_externalUrl",
-                    "placeholder": "http://192.168.1.50:11434",
+                    "placeholder": "placeholder_externalUrl",
                     "hidden": "data.backend !== 'external'",
                     "validator": "data.backend !== 'external' || /^https?:\\/\\/[^\\s/]+(:\\d+)?\\/?$/.test(data.externalUrl || '')",
                     "validatorErrorText": "Invalid URL",
@@ -41,7 +41,7 @@
                     "freeSolo": true,
                     "label": "Default model",
                     "help": "help_defaultModel",
-                    "placeholder": "qwen3:4b",
+                    "placeholder": "placeholder_defaultModel",
                     "validator": "!data.defaultModel || /^[a-zA-Z0-9._:\\/-]+$/.test(data.defaultModel)",
                     "validatorErrorText": "Invalid model name",
                     "validatorNoSaveOnError": true,
@@ -93,6 +93,11 @@
                 "dockerCpu": {
                     "type": "checkbox",
                     "hidden": "true",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4,
                     "onChange": {
                         "alsoDependsOn": ["backend", "gpu"],
                         "calculateFunc": "data.backend === 'docker' && data.gpu === 'cpu'",
@@ -102,6 +107,11 @@
                 "dockerRocm": {
                     "type": "checkbox",
                     "hidden": "true",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4,
                     "onChange": {
                         "alsoDependsOn": ["backend", "gpu"],
                         "calculateFunc": "data.backend === 'docker' && data.gpu === 'rocm'",

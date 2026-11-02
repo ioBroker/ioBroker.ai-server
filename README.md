@@ -12,7 +12,89 @@
 
 ## ai-server adapter for ioBroker
 
-Runs a local large language model (Ollama) via Docker and manages its models
+Runs a local large language model with [Ollama](https://ollama.com) and manages its models.
+The questions to the model stay in your network, no cloud account is needed.
+
+What the adapter does:
+
+- starts Ollama in a Docker container (via `@iobroker/plugin-docker`), or connects to an Ollama server that is already
+  running in your network;
+- downloads, loads, unloads and deletes models and shows them as objects;
+- answers requests to the model via `sendTo` and via states;
+- shows the state of the server, the queue and the speed of the last answer.
+
+What it does not do:
+
+- It does not control ioBroker devices by itself and does not execute tool calls of the model. That is the job of
+  the adapter or script that sends the request.
+- It does not run the model in the adapter process. The model runs in Ollama.
+- Ollama has no user management: everyone who can reach its port can use and change it (see "Bind address").
+
+Other adapters (javascript, admin, ai-toolbox, ai-assistant) can use the Ollama endpoint directly, see
+[Use by other adapters](#use-by-other-adapters).
+
+## Requirements
+
+- js-controller 7.1.0 or newer, admin 7.7.2 or newer, Node.js 22 or newer.
+- For the backend "Docker container":
+  - a Linux host (e.g. Raspberry Pi OS, Debian, Ubuntu) with Docker Engine 20.10 or newer;
+  - the user `iobroker` needs access to the Docker socket. Add it to the group `docker` and restart ioBroker:
+    ```bash
+    sudo usermod -aG docker iobroker
+    iob restart
+    ```
+  - Images: `ollama/ollama:latest` for the CPU, `ollama/ollama:rocm` for AMD graphics cards (ROCm).
+    The models are stored in the Docker volume `iob_ai_server_0_models` (for instance 0). This volume is not part of
+    the ioBroker backup: models are several GB in size and can be downloaded again at any time.
+- For the backend "External Ollama server": a running Ollama that can be reached from the ioBroker host. On Windows,
+  install [Ollama for Windows](https://ollama.com/download) and use this backend.
+
+### Memory
+
+A model needs about as much free memory (RAM) as its download size, plus 1-2 GB. The list in the instance settings
+offers these models:
+
+| Model         | Download size | Free memory needed |
+|---------------|---------------|--------------------|
+| `qwen3:1.7b`  | 1.4 GB        | about 3 GB         |
+| `llama3.2:3b` | 2.0 GB        | about 3-4 GB       |
+| `qwen3:4b`    | 2.5 GB        | about 4 GB         |
+| `qwen3.5:4b`  | 3.3 GB        | about 5 GB         |
+| `qwen3:8b`    | 5.2 GB        | about 7 GB         |
+| `qwen3.5:9b`  | 6.6 GB        | about 8 GB         |
+| `gemma4:e4b`  | 6.6 GB        | about 8 GB         |
+| `gpt-oss:20b` | 13.8 GB       | about 16 GB        |
+
+On a Raspberry Pi, stay with small models (up to about 4B parameters, e.g. `qwen3:1.7b` or `llama3.2:3b`).
+Without a graphics card, the answers of larger models take a long time. Even smaller models like `qwen3:0.6b` answer
+faster, but their answers are much less reliable.
+
+## Configuration
+
+Tab **General**:
+
+| Setting               | Meaning                                                                                     |
+|-----------------------|---------------------------------------------------------------------------------------------|
+| Backend               | "Docker container (managed by ioBroker)" or "External Ollama server"                        |
+| External server URL   | only for the external server, e.g. `http://192.168.1.50:11434`                              |
+| Default model         | used for requests without a model, downloaded at the start if it is missing (see below)     |
+| Request timeout       | maximum duration of a request to the model in seconds (default 300)                         |
+| Parallel requests     | how many requests are sent to the model at the same time (default 1)                       |
+| Maximum queue length  | requests beyond this number of waiting ones fail at once (default 10)                       |
+
+Tab **Docker** (only for the backend "Docker container"):
+
+| Setting                                    | Meaning                                                                       |
+|--------------------------------------------|-------------------------------------------------------------------------------|
+| Docker status                              | shows whether Docker can be used on the host                                  |
+| Hardware                                   | "CPU" or "AMD GPU (ROCm)". ROCm needs `/dev/kfd` and `/dev/dri` on the host   |
+| Bind address                               | `127.0.0.1` (default): only this host reaches Ollama. `0.0.0.0`: the whole network reaches it, **without any password**. The adapter writes a warning to the log then |
+| Port                                       | port of Ollama on the host (default 11434)                                   |
+| Keep model in memory                       | how long a model stays loaded after the last request: `5m`, `1h`, `0` (unload at once) or `-1` (forever) |
+| Update the container image automatically   | off by default. If on, a newer `ollama/ollama` image is downloaded at the start of the instance |
+| Stop the container when the instance stops | off by default, so a restart of the adapter keeps the model in memory        |
+
+NVIDIA graphics cards are not supported yet.
 
 ## Models
 
@@ -21,8 +103,7 @@ the list shows the downloaded models, marked with ✓, and a few recommended one
 Any other name from [ollama.com/library](https://ollama.com/library) can be typed in, e.g. `qwen3:14b`.
 If the default model is not downloaded yet, the adapter downloads it when the instance starts.
 
-A model needs about as much free memory as its size, plus 1-2 GB. On a Raspberry Pi, stay with the small ones
-(up to about 4B parameters, e.g. `qwen3:1.7b` or `llama3.2:3b`).
+Check the free memory first, see [Memory](#memory).
 
 To download more models, write the name into `ai-server.0.control.pull` or use `sendTo` (see below).
 The progress is shown in `control.pullProgress` (0-100 %), errors in the log and in `info.lastError`.
@@ -119,6 +200,84 @@ After every answer the adapter writes `metrics.lastDuration` (ms, without the ti
 
 Prompts and answers are only logged on level `debug`, shortened to 200 characters.
 
+## States
+
+| State                      | Meaning                                                                    |
+|----------------------------|----------------------------------------------------------------------------|
+| `info.connection`          | Ollama answers                                                             |
+| `info.status`              | `starting`, `ready`, `busy`, `error` or `stopped`                          |
+| `info.backendVersion`      | version of Ollama                                                          |
+| `info.lastError`           | last error                                                                 |
+| `models.<id>.*`            | downloaded models, see [Models](#models)                                   |
+| `control.pull`             | write a model name to download it                                          |
+| `control.pullProgress`     | progress of the download in %                                              |
+| `control.refresh`          | button: read the list of models again                                      |
+| `chat.model`               | model for `chat.prompt`, empty = default model                             |
+| `chat.system`              | system prompt for `chat.prompt`                                            |
+| `chat.think`               | let a thinking model think before answering (default `false`)              |
+| `chat.prompt`              | writing a question starts the request                                      |
+| `chat.response`            | answer to the last question                                                |
+| `chat.running`             | a question is being answered                                               |
+| `metrics.lastDuration`     | duration of the last request in ms                                         |
+| `metrics.tokensPerSecond`  | speed of the last answer                                                   |
+| `metrics.promptTokens`     | tokens of the last prompt                                                  |
+| `metrics.completionTokens` | tokens of the last answer                                                  |
+
+While Ollama is starting, `info.status` is `starting`. On the first start, Docker downloads the image of Ollama first,
+which can take several minutes. If Docker cannot be used, `info.status` is `error` and the log says why.
+
+## Use by other adapters
+
+The address of Ollama is returned by `sendTo('ai-server.0', 'getEndpoint', {})`:
+
+- Ollama API: `http://127.0.0.1:11434`
+- OpenAI-compatible API: `http://127.0.0.1:11434/v1` (with `/v1/chat/completions` and `/v1/models`)
+
+Ollama needs no API key. Where a key has to be entered, any text works, Ollama ignores it.
+
+`127.0.0.1` only works for adapters on the same host as Ollama. If the other adapter runs on another host (multihost),
+set "Bind address" to `0.0.0.0` and use the IP address of the Ollama host, e.g. `http://192.168.1.10:11434/v1`.
+Then everyone in the network can use Ollama without a password, so protect the port with a firewall if needed.
+
+Small local models are much slower than cloud models and make more mistakes, especially with tools. Load the model
+before the first request (`models.<id>.load`) and keep it in memory ("Keep model in memory", e.g. `1h` or `-1`), so
+the first answer does not wait for the model to load.
+
+### admin: system settings, tab "AI"
+
+Since admin 8.3.5, the AI settings can be set up once for all adapters:
+
+- Provider: "Custom (OpenAI-compatible)"
+- Base URL: `http://127.0.0.1:11434/v1`
+- API key: leave empty
+- Model: the name as in Ollama, e.g. `qwen3:4b`. The test button reads the list of models from Ollama.
+
+The assistant of admin sends the ioBroker tools with every request, so choose a model that supports tool calling,
+e.g. one of the `qwen3` models (marked with "tools" on [ollama.com/library](https://ollama.com/library)).
+
+### javascript
+
+- javascript 10.4.8 and newer: keep "Credentials type" on "System-wide AI settings" and set up the tab "AI" of admin
+  as described above.
+- Own settings (also older versions): "Credentials type" = "Manual",
+  "Custom API Base URL" = `http://127.0.0.1:11434/v1`, leave "API key (optional)" empty, check with "Test Custom API".
+  The model is chosen in the AI chat of the script editor.
+
+Scripts can use the `sendTo` commands of this adapter, see [Requests to the model](#requests-to-the-model).
+
+### ai-toolbox and ai-assistant
+
+Both have a tab "Custom" for an own inference server:
+
+- "URL for Inference Server": `http://127.0.0.1:11434/v1/chat/completions`. Here the complete address is needed,
+  including `/chat/completions`.
+- API token: any text or empty.
+- Enter the models by name in the table, e.g. `qwen3:4b`, save the settings and then choose the model in the tool
+  (ai-toolbox) or in the general settings (ai-assistant).
+
+ai-toolbox waits at most 30 seconds for an answer, and this cannot be changed. Keep the model loaded and use a small
+one. In ai-assistant, raise "Timeout (in seconds)" (default 30) to 120 or more on a CPU.
+
 ## Known limitations
 
 ### The first start takes several minutes
@@ -145,106 +304,14 @@ sudo docker stop iob_ai_server_0_ollama-rocm   # ROCm container
 
 The container is only stopped, not deleted. When you switch back, the adapter starts it again.
 
-A fix for plugin-docker is proposed in [ioBroker/plugin-docker#61](https://github.com/ioBroker/plugin-docker/pull/61).
-As soon as it is released, this adapter will require that version and the step above is no longer necessary.
+The fix for plugin-docker ([ioBroker/plugin-docker#61](https://github.com/ioBroker/plugin-docker/pull/61)) is merged,
+but not released yet. As soon as it is released, this adapter will require that version and the step above is no
+longer necessary.
 
-## Developer manual
-This section is intended for the developer. It can be deleted later.
+### NVIDIA graphics cards
 
-### DISCLAIMER
-
-Please make sure that you consider copyrights and trademarks when you use names or logos of a company and add a disclaimer to your README.
-You can check other adapters for examples or ask in the developer community. Using a name or logo of a company without permission may cause legal problems for you.
-
-### Getting started
-
-You are almost done, only a few steps left:
-1. Create a new repository on GitHub with the name `ioBroker.ai-server`
-1. Initialize the current folder as a new git repository:  
-    ```bash
-    git init -b main
-    git add .
-    git commit -m "Initial commit"
-    ```
-1. Link your local repository with the one on GitHub:  
-    ```bash
-    git remote add origin https://github.com/ioBroker/ioBroker.ai-server
-    ```
-
-1. Push all files to the GitHub repo:  
-    ```bash
-    git push origin main
-    ```
-1. Add a new secret under https://github.com/ioBroker/ioBroker.ai-server/settings/secrets. It must be named `AUTO_MERGE_TOKEN` and contain a personal access token with push access to the repository, e.g. yours. You can create a new token under https://github.com/settings/tokens.
-
-1. Head over to [src/main.ts](src/main.ts) and start programming!
-
-### Best Practices
-We've collected some [best practices](https://github.com/ioBroker/ioBroker.repositories#development-and-coding-best-practices) regarding ioBroker development and coding in general. If you're new to ioBroker or Node.js, you should
-check them out. If you're already experienced, you should also take a look at them - you might learn something new :)
-
-### State Roles
-When creating state objects, it is important to use the correct role for the state. The role defines how the state should be interpreted by visualizations and other adapters. For a list of available roles and their meanings, please refer to the [state roles documentation](https://www.iobroker.net/#en/documentation/dev/stateroles.md).
-
-**Important:** Do not invent your own custom role names. If you need a role that is not part of the official list, please contact the ioBroker developer community for guidance and discussion about adding new roles.
-
-### Scripts in `package.json`
-Several npm scripts are predefined for your convenience. You can run them using `npm run <scriptname>`
-| Script name | Description |
-|-------------|-------------|
-| `build` | Compile the TypeScript sources. |
-| `watch` | Compile the TypeScript sources and watch for changes. |
-| `test:ts` | Executes the tests you defined in `*.test.ts` files. |
-| `test:package` | Ensures your `package.json` and `io-package.json` are valid. |
-| `test:integration` | Tests the adapter startup with an actual instance of ioBroker. |
-| `test` | Performs a minimal test run on package files and your tests. |
-| `check` | Performs a type-check on your code (without compiling anything). |
-| `lint` | Runs `ESLint` to check your code for formatting errors and potential bugs. |
-| `translate` | Translates texts in your adapter to all required languages, see [`@iobroker/adapter-dev`](https://github.com/ioBroker/adapter-dev#manage-translations) for more details. |
-| `release` | Creates a new release, see [`@alcalzone/release-script`](https://github.com/AlCalzone/release-script#usage) for more details. |
-
-### Configuring the compilation
-The adapter template uses [esbuild](https://esbuild.github.io/) to compile TypeScript and/or React code. You can configure many compilation settings 
-either in `tsconfig.json` or by changing options for the build tasks. These options are described in detail in the
-[`@iobroker/adapter-dev` documentation](https://github.com/ioBroker/adapter-dev#compile-adapter-files).
-
-### Writing tests
-When done right, testing code is invaluable, because it gives you the 
-confidence to change your code while knowing exactly if and when 
-something breaks. A good read on the topic of test-driven development 
-is https://hackernoon.com/introduction-to-test-driven-development-tdd-61a13bc92d92. 
-Although writing tests before the code might seem strange at first, but it has very 
-clear upsides.
-
-The template provides you with basic tests for the adapter startup and package files.
-It is recommended that you add your own tests into the mix.
-
-### Publishing the adapter
-Using GitHub Actions, you can enable automatic releases on npm whenever you push a new git tag that matches the form 
-`v<major>.<minor>.<patch>`. We **strongly recommend** that you do. The necessary steps are described in `.github/workflows/test-and-release.yml`.
-
-Since you installed the release script, you can create a new
-release simply by calling:
-```bash
-npm run release
-```
-Additional command line options for the release script are explained in the
-[release-script documentation](https://github.com/AlCalzone/release-script#command-line).
-
-To get your adapter released in ioBroker, please refer to the documentation 
-of [ioBroker.repositories](https://github.com/ioBroker/ioBroker.repositories#requirements-for-adapter-to-get-added-to-the-latest-repository).
-
-### Test the adapter manually with dev-server
-Since you set up `dev-server`, you can use it to run, test and debug your adapter.
-
-You may start `dev-server` by calling from your dev directory:
-```bash
-dev-server watch
-```
-
-The ioBroker.admin interface will then be available at http://localhost:8081/
-
-Please refer to the [`dev-server` documentation](https://github.com/ioBroker/dev-server#command-line) for more details.
+Not supported yet: `@iobroker/plugin-docker` cannot pass a GPU (`gpus: all`) to the container. Use the CPU, an AMD card
+with ROCm, or an Ollama installed directly on the host with the backend "External Ollama server".
 
 ## Changelog
 <!--
@@ -253,7 +320,10 @@ Please refer to the [`dev-server` documentation](https://github.com/ioBroker/dev
 -->
 
 ### **WORK IN PROGRESS**
-* (GermanBluefox) initial release
+* (GermanBluefox) initial release: Ollama in Docker (CPU or AMD ROCm) or an external Ollama server
+* (GermanBluefox) models: list, download with progress, load, unload, delete; default model is downloaded at start
+* (GermanBluefox) requests via `sendTo` (`chat`, `generate`, `status`, `getEndpoint`) and via the states `chat.*`
+* (GermanBluefox) queue for parallel requests, metrics of the last answer
 
 ## License
 MIT License

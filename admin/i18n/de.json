@@ -31,5 +31,7 @@
     "help_maxQueue": "Anfragen über diese Anzahl hinaus werden sofort mit einem Fehler abgelehnt",
     "help_parallel": "Wie viele Anfragen gleichzeitig an das Modell gehen. Weitere Anfragen warten in der Warteschlange.",
     "help_requestTimeout": "Maximale Dauer einer einzelnen Anfrage an das Modell",
-    "help_stopOnUnload": "Wenn deaktiviert, bleibt das geladene Modell beim Neustart des Adapters im Speicher"
+    "help_stopOnUnload": "Wenn deaktiviert, bleibt das geladene Modell beim Neustart des Adapters im Speicher",
+    "placeholder_defaultModel": "qwen3:4b",
+    "placeholder_externalUrl": "http://192.168.1.50:11434"
 }

@@ -31,5 +31,7 @@
     "help_maxQueue": "Verzoeken boven dit aantal worden onmiddellijk afgewezen met een foutmelding",
     "help_parallel": "Hoeveel verzoeken er tegelijkertijd naar het model worden verzonden. Verdere verzoeken wachten in de wachtrij.",
     "help_requestTimeout": "Maximale duur van één enkel verzoek aan het model",
-    "help_stopOnUnload": "Indien uitgeschakeld, blijft het geladen model in het geheugen wanneer de adapter opnieuw wordt opgestart"
+    "help_stopOnUnload": "Indien uitgeschakeld, blijft het geladen model in het geheugen wanneer de adapter opnieuw wordt opgestart",
+    "placeholder_defaultModel": "qwen3:4b",
+    "placeholder_externalUrl": "http://192.168.1.50:11434"
 }
