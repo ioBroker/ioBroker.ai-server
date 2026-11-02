@@ -67,6 +67,56 @@ if (answer.error) {
 }
 ```
 
+## Requests to the model
+
+### With `sendTo`
+
+| Command       | Message                                                                           | Result                                                                |
+|---------------|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| `chat`        | `{ model?, messages: [{ role, content, images? }], system?, options?, format?, tools?, think? }` | `{ message, model, durationMs, promptTokens, completionTokens }` |
+| `generate`    | `{ model?, prompt, system?, options?, format?, think? }`                          | `{ response, thinking?, model, durationMs, promptTokens, completionTokens }` |
+| `status`      | `{}`                                                                              | `{ connected, status, version, baseUrl, loadedModels }`               |
+| `getEndpoint` | `{}`                                                                              | `{ ollama, openai }`, e.g. `http://127.0.0.1:11434` and `…/v1`        |
+
+- Without `model`, the default model of the instance settings is used.
+- `system` is put in front of the messages as a system message.
+- `options`, `format`, `tools` and `think` are passed to Ollama unchanged, see the
+  [Ollama API](https://docs.ollama.com/api/chat). The adapter does not execute tool calls itself:
+  `message.tool_calls` is returned to the caller, who sends the result back as a message with the role `tool`.
+- Thinking models (e.g. `qwen3`) think before they answer, unless `think: false` is given.
+  The thinking is returned separately in `message.thinking`, not in `content`. On a Raspberry Pi 5, a short question
+  to `qwen3:0.6b` took 22 s with thinking and 0.4 s without.
+
+```js
+const answer = await sendToAsync('ai-server.0', 'chat', {
+    system: 'Answer in one sentence.',
+    messages: [{ role: 'user', content: 'Why is the sky blue?' }],
+    think: false,
+});
+if (answer.error) {
+    log(answer.error, 'warn');
+} else {
+    log(answer.result.message.content);
+}
+```
+
+### With states
+
+Write a question into `chat.prompt`; the answer appears in `chat.response`. `chat.running` is `true` meanwhile.
+`chat.model` selects the model (empty = default model) and `chat.system` sets a system prompt; both are read when the
+question is written. Every question is answered on its own, without the previous ones.
+
+### Queue and metrics
+
+At most "Parallel requests" requests (`chat`, `generate`, `chat.prompt`) run at the same time, further ones wait.
+If more than "Maximum queue length" requests are waiting, a new one fails at once. `info.status` is `busy` while
+requests run.
+
+After every answer the adapter writes `metrics.lastDuration` (ms, without the time in the queue),
+`metrics.tokensPerSecond`, `metrics.promptTokens` and `metrics.completionTokens`.
+
+Prompts and answers are only logged on level `debug`, shortened to 200 characters.
+
 ## Known limitations
 
 ### The first start takes several minutes

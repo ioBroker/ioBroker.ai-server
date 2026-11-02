@@ -234,6 +234,141 @@
                 "def": false
             },
             "native": {}
+        },
+        {
+            "_id": "chat",
+            "type": "channel",
+            "common": {
+                "name": "Chat via states"
+            },
+            "native": {}
+        },
+        {
+            "_id": "chat.model",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "Model for the chat, empty = default model",
+                "type": "string",
+                "read": true,
+                "write": true,
+                "def": ""
+            },
+            "native": {}
+        },
+        {
+            "_id": "chat.system",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "System prompt",
+                "type": "string",
+                "read": true,
+                "write": true,
+                "def": ""
+            },
+            "native": {}
+        },
+        {
+            "_id": "chat.prompt",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "Question to the model: writing it starts the request",
+                "type": "string",
+                "read": true,
+                "write": true,
+                "def": ""
+            },
+            "native": {}
+        },
+        {
+            "_id": "chat.response",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "Answer of the model",
+                "type": "string",
+                "read": true,
+                "write": false,
+                "def": ""
+            },
+            "native": {}
+        },
+        {
+            "_id": "chat.running",
+            "type": "state",
+            "common": {
+                "role": "indicator",
+                "name": "A question is being answered",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        },
+        {
+            "_id": "metrics",
+            "type": "channel",
+            "common": {
+                "name": "Metrics of the last request"
+            },
+            "native": {}
+        },
+        {
+            "_id": "metrics.lastDuration",
+            "type": "state",
+            "common": {
+                "role": "value",
+                "name": "Duration of the last request",
+                "type": "number",
+                "unit": "ms",
+                "read": true,
+                "write": false,
+                "def": 0
+            },
+            "native": {}
+        },
+        {
+            "_id": "metrics.tokensPerSecond",
+            "type": "state",
+            "common": {
+                "role": "value",
+                "name": "Speed of the last answer",
+                "type": "number",
+                "unit": "tokens/s",
+                "read": true,
+                "write": false,
+                "def": 0
+            },
+            "native": {}
+        },
+        {
+            "_id": "metrics.promptTokens",
+            "type": "state",
+            "common": {
+                "role": "value",
+                "name": "Tokens of the last prompt",
+                "type": "number",
+                "read": true,
+                "write": false,
+                "def": 0
+            },
+            "native": {}
+        },
+        {
+            "_id": "metrics.completionTokens",
+            "type": "state",
+            "common": {
+                "role": "value",
+                "name": "Tokens of the last answer",
+                "type": "number",
+                "read": true,
+                "write": false,
+                "def": 0
+            },
+            "native": {}
         }
     ]
 }

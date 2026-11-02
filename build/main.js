@@ -29,11 +29,21 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
+var __privateWrapper = (obj, member, setter, getter) => ({
+  set _(value) {
+    __privateSet(obj, member, value, setter);
+  },
+  get _() {
+    return __privateGet(obj, member, getter);
+  }
+});
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_models = require("./lib/models");
 var import_objects = require("./lib/objects");
 var import_ollama_client = require("./lib/ollama-client");
-var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _AiServer_instances, handleCommand_fn, getBaseUrl_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, setLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, setStatus_fn, setError_fn, reportError_fn;
+var import_queue = require("./lib/queue");
+var import_requests = require("./lib/requests");
+var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _queue, _status, _version, _stateChats, _AiServer_instances, handleCommand_fn, getBaseUrl_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, setLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, requestDefaults_fn, chat_fn, generate_fn, runRequest_fn, chatFromStates_fn, onQueueChange_fn, loadedModels_fn, setStatus_fn, setError_fn, reportError_fn;
 const RETRY_MIN_MS = 2e3;
 const RETRY_MAX_MS = 3e4;
 const WAIT_INFO_AFTER_MS = 6e4;
@@ -70,6 +80,14 @@ class AiServer extends utils.Adapter {
     __privateAdd(this, _refreshQueue, Promise.resolve());
     /** The model being downloaded. Only one download runs at a time, as there is one progress state */
     __privateAdd(this, _pulling, null);
+    /** Limits the requests to the model (chat, generate) to `parallel` at a time */
+    __privateAdd(this, _queue, null);
+    /** Value of `info.status` */
+    __privateAdd(this, _status, "starting");
+    /** Version of Ollama, as of the last connection */
+    __privateAdd(this, _version, "");
+    /** Number of running requests started via `chat.prompt` */
+    __privateAdd(this, _stateChats, 0);
     this.on("ready", this.onReady.bind(this));
     this.on("stateChange", this.onStateChange.bind(this));
     this.on("message", this.onMessage.bind(this));
@@ -83,6 +101,11 @@ class AiServer extends utils.Adapter {
   async onReady() {
     await this.setState("info.connection", false, true);
     await __privateMethod(this, _AiServer_instances, setStatus_fn).call(this, "starting");
+    __privateSet(this, _queue, new import_queue.RequestQueue({
+      parallel: this.config.parallel,
+      maxQueue: this.config.maxQueue,
+      onChange: (running) => __privateMethod(this, _AiServer_instances, onQueueChange_fn).call(this, running)
+    }));
     const baseUrl = __privateMethod(this, _AiServer_instances, getBaseUrl_fn).call(this);
     if (!baseUrl) {
       await __privateMethod(this, _AiServer_instances, setError_fn).call(this, `Invalid URL of the external Ollama server: "${this.config.externalUrl}". Expected e.g. http://192.168.1.50:11434`);
@@ -117,10 +140,11 @@ class AiServer extends utils.Adapter {
    * @param callback - Callback function
    */
   async onUnload(callback) {
-    var _a;
+    var _a, _b;
     try {
       __privateSet(this, _unloading, true);
-      (_a = __privateGet(this, _client)) == null ? void 0 : _a.abortAll();
+      (_a = __privateGet(this, _queue)) == null ? void 0 : _a.clear(new Error("The adapter is stopping"));
+      (_b = __privateGet(this, _client)) == null ? void 0 : _b.abortAll();
       __privateMethod(this, _AiServer_instances, stopMonitor_fn).call(this);
       this.clearTimeout(__privateGet(this, _retryTimer));
       await this.setState("info.connection", false, true);
@@ -153,6 +177,14 @@ class AiServer extends utils.Adapter {
       } else if (localId === "control.refresh") {
         await this.setState(localId, state.val, true);
         await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
+      } else if (localId === "chat.model" || localId === "chat.system") {
+        await this.setState(localId, state.val, true);
+      } else if (localId === "chat.prompt") {
+        const prompt = typeof state.val === "string" ? state.val : "";
+        await this.setState(localId, prompt, true);
+        if (prompt.trim()) {
+          await __privateMethod(this, _AiServer_instances, chatFromStates_fn).call(this, prompt);
+        }
       } else {
         const command = (0, import_objects.parseModelCommand)(localId);
         if (!command || !state.val) {
@@ -203,8 +235,13 @@ _subscribed = new WeakMap();
 _models = new WeakMap();
 _refreshQueue = new WeakMap();
 _pulling = new WeakMap();
+_queue = new WeakMap();
+_status = new WeakMap();
+_version = new WeakMap();
+_stateChats = new WeakMap();
 _AiServer_instances = new WeakSet();
 handleCommand_fn = async function(command, message) {
+  var _a, _b, _c, _d;
   switch (command) {
     case "listModels":
       return __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
@@ -224,6 +261,42 @@ handleCommand_fn = async function(command, message) {
     case "unloadModel":
       await __privateMethod(this, _AiServer_instances, setLoaded_fn).call(this, getModel(message), false);
       return { unloaded: true };
+    case "chat": {
+      const { response, metrics } = await __privateMethod(this, _AiServer_instances, chat_fn).call(this, message);
+      return {
+        message: response.message,
+        model: response.model,
+        durationMs: metrics.durationMs,
+        promptTokens: metrics.promptTokens,
+        completionTokens: metrics.completionTokens
+      };
+    }
+    case "generate": {
+      const { response, metrics } = await __privateMethod(this, _AiServer_instances, generate_fn).call(this, message);
+      return {
+        response: response.response,
+        ...response.thinking ? { thinking: response.thinking } : {},
+        model: response.model,
+        durationMs: metrics.durationMs,
+        promptTokens: metrics.promptTokens,
+        completionTokens: metrics.completionTokens
+      };
+    }
+    case "status":
+      return {
+        connected: __privateGet(this, _connected),
+        status: __privateGet(this, _status),
+        version: __privateGet(this, _version),
+        baseUrl: (_b = (_a = __privateGet(this, _client)) == null ? void 0 : _a.baseUrl) != null ? _b : __privateMethod(this, _AiServer_instances, getBaseUrl_fn).call(this),
+        loadedModels: await __privateMethod(this, _AiServer_instances, loadedModels_fn).call(this)
+      };
+    case "getEndpoint": {
+      const baseUrl = (_d = (_c = __privateGet(this, _client)) == null ? void 0 : _c.baseUrl) != null ? _d : __privateMethod(this, _AiServer_instances, getBaseUrl_fn).call(this);
+      if (!baseUrl) {
+        throw new Error("The URL of the external Ollama server is invalid");
+      }
+      return { ollama: baseUrl, openai: `${baseUrl}/v1` };
+    }
     default:
       throw new Error(`Unknown command "${command}"`);
   }
@@ -296,12 +369,13 @@ waitForOllama_fn = function() {
   void attempt();
 };
 onConnected_fn = async function(version) {
-  var _a;
+  var _a, _b;
   __privateSet(this, _connected, true);
+  __privateSet(this, _version, version);
   await this.setState("info.backendVersion", version, true);
   await this.setState("info.connection", true, true);
-  await __privateMethod(this, _AiServer_instances, setStatus_fn).call(this, "ready");
-  this.log.info(`Connected to Ollama ${version} at ${(_a = __privateGet(this, _client)) == null ? void 0 : _a.baseUrl}`);
+  await __privateMethod(this, _AiServer_instances, setStatus_fn).call(this, ((_a = __privateGet(this, _queue)) == null ? void 0 : _a.running) ? "busy" : "ready");
+  this.log.info(`Connected to Ollama ${version} at ${(_b = __privateGet(this, _client)) == null ? void 0 : _b.baseUrl}`);
   let models = null;
   try {
     models = await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this);
@@ -314,6 +388,9 @@ onConnected_fn = async function(version) {
     await this.subscribeStatesAsync("control.refresh");
     await this.subscribeStatesAsync("models.*.load");
     await this.subscribeStatesAsync("models.*.unload");
+    await this.subscribeStatesAsync("chat.model");
+    await this.subscribeStatesAsync("chat.system");
+    await this.subscribeStatesAsync("chat.prompt");
   }
   __privateSet(this, _monitorTimer, this.setInterval(() => void __privateMethod(this, _AiServer_instances, monitor_fn).call(this), MONITOR_INTERVAL_MS));
   if (models) {
@@ -477,7 +554,7 @@ pull_fn = async function(client, model) {
     await this.setState("control.pull", model, true);
     await this.setState("control.pullProgress", 0, true);
     this.log.info(`Downloading model ${model}`);
-    await client.pull(model, (_status, percent) => {
+    await client.pull(model, (_status2, percent) => {
       const now = Date.now();
       if (percent === null || percent === lastPercent || now - lastWrite < PULL_PROGRESS_INTERVAL_MS) {
         return;
@@ -499,7 +576,95 @@ pull_fn = async function(client, model) {
   }
   await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this).catch((error) => __privateMethod(this, _AiServer_instances, reportError_fn).call(this, `Cannot read the models: ${errorText(error)}`));
 };
+/** Default model and keep-alive for the requests */
+requestDefaults_fn = function() {
+  return { model: this.config.defaultModel, keepAlive: this.config.keepAlive };
+};
+chat_fn = async function(message) {
+  var _a, _b;
+  const client = __privateMethod(this, _AiServer_instances, requireClient_fn).call(this);
+  const request = (0, import_requests.toChatRequest)(message, __privateMethod(this, _AiServer_instances, requestDefaults_fn).call(this));
+  this.log.debug(`Chat with ${request.model}: ${(0, import_requests.shorten)(request.messages[request.messages.length - 1].content)}`);
+  const result = await __privateMethod(this, _AiServer_instances, runRequest_fn).call(this, () => client.chat(request));
+  this.log.debug(
+    `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${(0, import_requests.shorten)((_b = (_a = result.response.message) == null ? void 0 : _a.content) != null ? _b : "")}`
+  );
+  return result;
+};
+generate_fn = async function(message) {
+  var _a, _b;
+  const client = __privateMethod(this, _AiServer_instances, requireClient_fn).call(this);
+  const request = (0, import_requests.toGenerateRequest)(message, __privateMethod(this, _AiServer_instances, requestDefaults_fn).call(this));
+  this.log.debug(`Generate with ${request.model}: ${(0, import_requests.shorten)((_a = request.prompt) != null ? _a : "")}`);
+  const result = await __privateMethod(this, _AiServer_instances, runRequest_fn).call(this, () => client.generate(request));
+  this.log.debug(
+    `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${(0, import_requests.shorten)((_b = result.response.response) != null ? _b : "")}`
+  );
+  return result;
+};
+runRequest_fn = async function(request) {
+  if (!__privateGet(this, _queue)) {
+    throw new Error("The adapter is not ready yet");
+  }
+  const { response, durationMs } = await __privateGet(this, _queue).run(async () => {
+    const started = Date.now();
+    const response2 = await request();
+    return { response: response2, durationMs: Date.now() - started };
+  });
+  const metrics = (0, import_requests.toMetrics)(response, durationMs);
+  await this.setState("metrics.lastDuration", metrics.durationMs, true);
+  await this.setState("metrics.tokensPerSecond", metrics.tokensPerSecond, true);
+  await this.setState("metrics.promptTokens", metrics.promptTokens, true);
+  await this.setState("metrics.completionTokens", metrics.completionTokens, true);
+  return { response, metrics };
+};
+chatFromStates_fn = async function(prompt) {
+  var _a, _b;
+  const model = await this.getStateAsync("chat.model");
+  const system = await this.getStateAsync("chat.system");
+  __privateWrapper(this, _stateChats)._++;
+  await this.setState("chat.running", true, true);
+  try {
+    const { response } = await __privateMethod(this, _AiServer_instances, chat_fn).call(this, {
+      model: typeof (model == null ? void 0 : model.val) === "string" ? model.val : "",
+      system: typeof (system == null ? void 0 : system.val) === "string" && system.val.trim() ? system.val : void 0,
+      messages: [{ role: "user", content: prompt }]
+    });
+    await this.setState("chat.response", (_b = (_a = response.message) == null ? void 0 : _a.content) != null ? _b : "", true);
+  } finally {
+    __privateWrapper(this, _stateChats)._--;
+    if (!__privateGet(this, _stateChats) && !__privateGet(this, _unloading)) {
+      await this.setState("chat.running", false, true);
+    }
+  }
+};
+/**
+ * `info.status` is `busy` while requests to the model run
+ *
+ * @param running number of running requests
+ */
+onQueueChange_fn = function(running) {
+  if (!__privateGet(this, _connected) || __privateGet(this, _unloading)) {
+    return;
+  }
+  const status = running ? "busy" : "ready";
+  if (status !== __privateGet(this, _status)) {
+    __privateMethod(this, _AiServer_instances, setStatus_fn).call(this, status).catch((error) => this.log.debug(`Cannot write the status: ${errorText(error)}`));
+  }
+};
+loadedModels_fn = async function() {
+  if (!__privateGet(this, _client) || !__privateGet(this, _connected)) {
+    return [];
+  }
+  try {
+    const running = await __privateGet(this, _client).listRunningModels(PROBE_TIMEOUT_MS);
+    return running.map((item) => item.name || item.model);
+  } catch {
+    return [];
+  }
+};
 setStatus_fn = async function(status) {
+  __privateSet(this, _status, status);
   await this.setState("info.status", status, true);
 };
 setError_fn = async function(message, level = "error") {

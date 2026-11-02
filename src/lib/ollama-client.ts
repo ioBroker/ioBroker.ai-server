@@ -178,6 +178,8 @@ export interface OllamaGenerateResponse extends OllamaStats {
     created_at?: string;
     /** The answer of the model */
     response: string;
+    /** Thinking process of a thinking model */
+    thinking?: string;
     /** Always true without streaming */
     done: boolean;
     /** e.g. `stop`, `length` or `unload` */

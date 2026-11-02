@@ -5,7 +5,24 @@
 import * as utils from '@iobroker/adapter-core';
 import { type ModelInfo, modelOptions, sameModel, toModelInfos } from './lib/models';
 import { MODEL_STATES, parseModelCommand, toModelId } from './lib/objects';
-import { isValidModelName, OllamaClient, type OllamaRunningModel } from './lib/ollama-client';
+import {
+    isValidModelName,
+    type OllamaChatResponse,
+    OllamaClient,
+    type OllamaGenerateResponse,
+    type OllamaMessage,
+    type OllamaRunningModel,
+    type OllamaStats,
+} from './lib/ollama-client';
+import { RequestQueue } from './lib/queue';
+import {
+    type RequestDefaults,
+    type RequestMetrics,
+    shorten,
+    toChatRequest,
+    toGenerateRequest,
+    toMetrics,
+} from './lib/requests';
 
 /** First and maximal delay between two attempts to reach Ollama */
 const RETRY_MIN_MS = 2_000;
@@ -59,6 +76,14 @@ class AiServer extends utils.Adapter {
     #refreshQueue: Promise<unknown> = Promise.resolve();
     /** The model being downloaded. Only one download runs at a time, as there is one progress state */
     #pulling: string | null = null;
+    /** Limits the requests to the model (chat, generate) to `parallel` at a time */
+    #queue: RequestQueue | null = null;
+    /** Value of `info.status` */
+    #status: Status = 'starting';
+    /** Version of Ollama, as of the last connection */
+    #version = '';
+    /** Number of running requests started via `chat.prompt` */
+    #stateChats = 0;
 
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
         super({
@@ -79,6 +104,11 @@ class AiServer extends utils.Adapter {
     private async onReady(): Promise<void> {
         await this.setState('info.connection', false, true);
         await this.#setStatus('starting');
+        this.#queue = new RequestQueue({
+            parallel: this.config.parallel,
+            maxQueue: this.config.maxQueue,
+            onChange: running => this.#onQueueChange(running),
+        });
 
         const baseUrl = this.#getBaseUrl();
         if (!baseUrl) {
@@ -121,6 +151,7 @@ class AiServer extends utils.Adapter {
     private async onUnload(callback: () => void): Promise<void> {
         try {
             this.#unloading = true;
+            this.#queue?.clear(new Error('The adapter is stopping'));
             this.#client?.abortAll();
             this.#stopMonitor();
             this.clearTimeout(this.#retryTimer);
@@ -156,6 +187,15 @@ class AiServer extends utils.Adapter {
             } else if (localId === 'control.refresh') {
                 await this.setState(localId, state.val, true);
                 await this.#refreshModels();
+            } else if (localId === 'chat.model' || localId === 'chat.system') {
+                // read when the next prompt is written
+                await this.setState(localId, state.val, true);
+            } else if (localId === 'chat.prompt') {
+                const prompt = typeof state.val === 'string' ? state.val : '';
+                await this.setState(localId, prompt, true);
+                if (prompt.trim()) {
+                    await this.#chatFromStates(prompt);
+                }
             } else {
                 const command = parseModelCommand(localId);
                 if (!command || !state.val) {
@@ -228,6 +268,46 @@ class AiServer extends utils.Adapter {
             case 'unloadModel':
                 await this.#setLoaded(getModel(message), false);
                 return { unloaded: true };
+
+            case 'chat': {
+                const { response, metrics } = await this.#chat(message);
+                return {
+                    message: response.message,
+                    model: response.model,
+                    durationMs: metrics.durationMs,
+                    promptTokens: metrics.promptTokens,
+                    completionTokens: metrics.completionTokens,
+                };
+            }
+
+            case 'generate': {
+                const { response, metrics } = await this.#generate(message);
+                return {
+                    response: response.response,
+                    ...(response.thinking ? { thinking: response.thinking } : {}),
+                    model: response.model,
+                    durationMs: metrics.durationMs,
+                    promptTokens: metrics.promptTokens,
+                    completionTokens: metrics.completionTokens,
+                };
+            }
+
+            case 'status':
+                return {
+                    connected: this.#connected,
+                    status: this.#status,
+                    version: this.#version,
+                    baseUrl: this.#client?.baseUrl ?? this.#getBaseUrl(),
+                    loadedModels: await this.#loadedModels(),
+                };
+
+            case 'getEndpoint': {
+                const baseUrl = this.#client?.baseUrl ?? this.#getBaseUrl();
+                if (!baseUrl) {
+                    throw new Error('The URL of the external Ollama server is invalid');
+                }
+                return { ollama: baseUrl, openai: `${baseUrl}/v1` };
+            }
 
             default:
                 throw new Error(`Unknown command "${command}"`);
@@ -309,9 +389,10 @@ class AiServer extends utils.Adapter {
 
     async #onConnected(version: string): Promise<void> {
         this.#connected = true;
+        this.#version = version;
         await this.setState('info.backendVersion', version, true);
         await this.setState('info.connection', true, true);
-        await this.#setStatus('ready');
+        await this.#setStatus(this.#queue?.running ? 'busy' : 'ready');
         this.log.info(`Connected to Ollama ${version} at ${this.#client?.baseUrl}`);
 
         let models: ModelInfo[] | null = null;
@@ -326,6 +407,9 @@ class AiServer extends utils.Adapter {
             await this.subscribeStatesAsync('control.refresh');
             await this.subscribeStatesAsync('models.*.load');
             await this.subscribeStatesAsync('models.*.unload');
+            await this.subscribeStatesAsync('chat.model');
+            await this.subscribeStatesAsync('chat.system');
+            await this.subscribeStatesAsync('chat.prompt');
         }
         this.#monitorTimer = this.setInterval(() => void this.#monitor(), MONITOR_INTERVAL_MS);
         if (models) {
@@ -538,7 +622,123 @@ class AiServer extends utils.Adapter {
         await this.#refreshModels().catch(error => this.#reportError(`Cannot read the models: ${errorText(error)}`));
     }
 
+    /** Default model and keep-alive for the requests */
+    #requestDefaults(): RequestDefaults {
+        return { model: this.config.defaultModel, keepAlive: this.config.keepAlive };
+    }
+
+    /**
+     * Send a chat to the model
+     *
+     * @param message the message of `sendTo('chat')`
+     */
+    async #chat(message: unknown): Promise<{ response: OllamaChatResponse; metrics: RequestMetrics }> {
+        const client = this.#requireClient();
+        const request = toChatRequest(message, this.#requestDefaults());
+        this.log.debug(`Chat with ${request.model}: ${shorten(request.messages[request.messages.length - 1].content)}`);
+        const result = await this.#runRequest(() => client.chat(request));
+        this.log.debug(
+            `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${shorten(result.response.message?.content ?? '')}`,
+        );
+        return result;
+    }
+
+    /**
+     * Let the model complete a prompt
+     *
+     * @param message the message of `sendTo('generate')`
+     */
+    async #generate(message: unknown): Promise<{ response: OllamaGenerateResponse; metrics: RequestMetrics }> {
+        const client = this.#requireClient();
+        const request = toGenerateRequest(message, this.#requestDefaults());
+        this.log.debug(`Generate with ${request.model}: ${shorten(request.prompt ?? '')}`);
+        const result = await this.#runRequest(() => client.generate(request));
+        this.log.debug(
+            `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${shorten(result.response.response ?? '')}`,
+        );
+        return result;
+    }
+
+    /**
+     * Run a request to the model in the queue, measure it and write the metrics
+     *
+     * @param request the request to Ollama
+     */
+    async #runRequest<T extends OllamaStats>(
+        request: () => Promise<T>,
+    ): Promise<{ response: T; metrics: RequestMetrics }> {
+        if (!this.#queue) {
+            throw new Error('The adapter is not ready yet');
+        }
+        const { response, durationMs } = await this.#queue.run(async () => {
+            const started = Date.now();
+            const response = await request();
+            return { response, durationMs: Date.now() - started };
+        });
+        const metrics = toMetrics(response, durationMs);
+        await this.setState('metrics.lastDuration', metrics.durationMs, true);
+        await this.setState('metrics.tokensPerSecond', metrics.tokensPerSecond, true);
+        await this.setState('metrics.promptTokens', metrics.promptTokens, true);
+        await this.setState('metrics.completionTokens', metrics.completionTokens, true);
+        return { response, metrics };
+    }
+
+    /**
+     * A prompt written into `chat.prompt`: a single question without history, with the model of `chat.model`
+     * and the system prompt of `chat.system`. The answer goes to `chat.response`.
+     *
+     * @param prompt the question
+     */
+    async #chatFromStates(prompt: string): Promise<void> {
+        const model = await this.getStateAsync('chat.model');
+        const system = await this.getStateAsync('chat.system');
+        this.#stateChats++;
+        await this.setState('chat.running', true, true);
+        try {
+            const { response } = await this.#chat({
+                model: typeof model?.val === 'string' ? model.val : '',
+                system: typeof system?.val === 'string' && system.val.trim() ? system.val : undefined,
+                messages: [{ role: 'user', content: prompt }] satisfies OllamaMessage[],
+            });
+            await this.setState('chat.response', response.message?.content ?? '', true);
+        } finally {
+            this.#stateChats--;
+            if (!this.#stateChats && !this.#unloading) {
+                await this.setState('chat.running', false, true);
+            }
+        }
+    }
+
+    /**
+     * `info.status` is `busy` while requests to the model run
+     *
+     * @param running number of running requests
+     */
+    #onQueueChange(running: number): void {
+        if (!this.#connected || this.#unloading) {
+            return;
+        }
+        const status: Status = running ? 'busy' : 'ready';
+        if (status !== this.#status) {
+            this.#setStatus(status).catch(error => this.log.debug(`Cannot write the status: ${errorText(error)}`));
+        }
+    }
+
+    /** Names of the models in memory, empty if Ollama does not answer */
+    async #loadedModels(): Promise<string[]> {
+        if (!this.#client || !this.#connected) {
+            return [];
+        }
+        try {
+            const running = await this.#client.listRunningModels(PROBE_TIMEOUT_MS);
+            return running.map(item => item.name || item.model);
+        } catch {
+            return [];
+        }
+    }
+
     async #setStatus(status: Status): Promise<void> {
+        this.#status = status;
         await this.setState('info.status', status, true);
     }
 
