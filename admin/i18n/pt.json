@@ -24,7 +24,7 @@
     "gpu_rocm": "GPU AMD (ROCm)",
     "help_autoUpdate": "Extrai uma imagem mais recente de ollama/ollama quando disponível e recria o contêiner",
     "help_bind": "0.0.0.0 torna o servidor acessível em toda a rede sem nenhuma senha. Mantenha 127.0.0.1 se apenas este host o utilizar.",
-    "help_defaultModel": "Usado quando uma solicitação não nomeia um modelo, por exemplo. qwen3:8b",
+    "help_defaultModel": "Usado para pedidos que não indicam um modelo. Um modelo ainda não baixado (sem ✓) é baixado quando a instância inicia. Ele precisa de aproximadamente tanta memória livre quanto o seu tamanho, mais 1-2 GB.",
     "help_externalUrl": "Endereço de um servidor Ollama em execução, por ex. http://192.168.1.50:11434",
     "help_gpu": "ROCm precisa de uma placa gráfica AMD e dos dispositivos /dev/kfd e /dev/dri no host",
     "help_keepAlive": "Quanto tempo um modelo permanece carregado após a última solicitação, por ex. 5m, 1h, 0 (descarregar imediatamente) ou -1 (para sempre)",

@@ -36,10 +36,12 @@
                     "xl": 4
                 },
                 "defaultModel": {
-                    "type": "text",
+                    "type": "autocompleteSendTo",
+                    "command": "getModelOptions",
+                    "freeSolo": true,
                     "label": "Default model",
                     "help": "help_defaultModel",
-                    "placeholder": "qwen3:8b",
+                    "placeholder": "qwen3:4b",
                     "validator": "!data.defaultModel || /^[a-zA-Z0-9._:\\/-]+$/.test(data.defaultModel)",
                     "validatorErrorText": "Invalid model name",
                     "validatorNoSaveOnError": true,

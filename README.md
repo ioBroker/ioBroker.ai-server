@@ -14,6 +14,59 @@
 
 Runs a local large language model (Ollama) via Docker and manages its models
 
+## Models
+
+Ollama starts without any model. Choose the **default model** in the instance settings (tab "General"):
+the list shows the downloaded models, marked with ✓, and a few recommended ones with their download size.
+Any other name from [ollama.com/library](https://ollama.com/library) can be typed in, e.g. `qwen3:14b`.
+If the default model is not downloaded yet, the adapter downloads it when the instance starts.
+
+A model needs about as much free memory as its size, plus 1-2 GB. On a Raspberry Pi, stay with the small ones
+(up to about 4B parameters, e.g. `qwen3:1.7b` or `llama3.2:3b`).
+
+To download more models, write the name into `ai-server.0.control.pull` or use `sendTo` (see below).
+The progress is shown in `control.pullProgress` (0-100 %), errors in the log and in `info.lastError`.
+Only one download runs at a time.
+
+Every downloaded model gets a channel below `models`, e.g. `models.qwen3_4b` for `qwen3:4b`:
+
+| State           | Meaning                                       |
+|-----------------|-----------------------------------------------|
+| `name`          | original name, e.g. `qwen3:4b`                |
+| `size`          | size on disk in bytes                         |
+| `parameterSize` | number of parameters, e.g. `4.0B`             |
+| `quantization`  | e.g. `Q4_K_M`                                 |
+| `loaded`        | the model is in memory                        |
+| `load`          | button: load the model into memory            |
+| `unload`        | button: remove the model from memory          |
+
+Ollama loads a model on the first request by itself and unloads it after the time set in "Keep model in memory".
+`loaded` is updated every 30 seconds. Models deleted in Ollama disappear from the objects; `control.refresh` reads the
+list at once, e.g. after a model was downloaded with the Ollama command line.
+
+### Managing models with `sendTo`
+
+Every command is answered with `{ result }` or `{ error }`.
+
+| Command       | Message                  | Result                                                     |
+|---------------|--------------------------|------------------------------------------------------------|
+| `listModels`  | `{}`                     | `[{ name, size, parameterSize, quantization, loaded }]`    |
+| `pull`        | `{ model: 'qwen3:4b' }`  | `{ started: true }` at once, progress in `control.pullProgress` |
+| `deleteModel` | `{ model: 'qwen3:4b' }`  | `{ deleted: true }`                                        |
+| `loadModel`   | `{ model: 'qwen3:4b' }`  | `{ loaded: true }`                                         |
+| `unloadModel` | `{ model: 'qwen3:4b' }`  | `{ unloaded: true }`                                       |
+
+```js
+const answer = await sendToAsync('ai-server.0', 'listModels', {});
+if (answer.error) {
+    log(answer.error, 'warn');
+} else {
+    for (const model of answer.result) {
+        log(`${model.name}: ${(model.size / 1e9).toFixed(1)} GB${model.loaded ? ', loaded' : ''}`);
+    }
+}
+```
+
 ## Known limitations
 
 ### The first start takes several minutes

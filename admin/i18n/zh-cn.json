@@ -24,7 +24,7 @@
     "gpu_rocm": "AMD GPU (ROCm)",
     "help_autoUpdate": "当可用时拉取更新的 ollama/ollama 镜像并重新创建容器",
     "help_bind": "0.0.0.0 会使服务器在整个网络中无需密码即可访问。如果只有本主机使用，请保留 127.0.0.1。",
-    "help_defaultModel": "当请求未命名模型时使用，例如qwen3:8b",
+    "help_defaultModel": "用于未指定模型的请求。尚未下载的模型（不带 ✓）会在实例启动时下载。它需要的空闲内存大约等于其大小再加 1-2 GB。",
     "help_externalUrl": "正在运行的 Ollama 服务器的地址，例如http://192.168.1.50:11434",
     "help_gpu": "ROCm 需要 AMD 显卡以及主机上的设备 /dev/kfd 和 /dev/dri",
     "help_keepAlive": "最后一次请求后模型保持加载状态的时间，例如5m、1h、0（立即卸载）或-1（永远）",

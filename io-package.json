@@ -176,6 +176,64 @@
                 "def": ""
             },
             "native": {}
+        },
+        {
+            "_id": "models",
+            "type": "channel",
+            "common": {
+                "name": "Downloaded models"
+            },
+            "native": {}
+        },
+        {
+            "_id": "control",
+            "type": "channel",
+            "common": {
+                "name": "Control"
+            },
+            "native": {}
+        },
+        {
+            "_id": "control.pull",
+            "type": "state",
+            "common": {
+                "role": "text",
+                "name": "Download a model: write its name, e.g. qwen3:4b",
+                "type": "string",
+                "read": true,
+                "write": true,
+                "def": ""
+            },
+            "native": {}
+        },
+        {
+            "_id": "control.pullProgress",
+            "type": "state",
+            "common": {
+                "role": "value",
+                "name": "Progress of the download",
+                "type": "number",
+                "unit": "%",
+                "min": 0,
+                "max": 100,
+                "read": true,
+                "write": false,
+                "def": 0
+            },
+            "native": {}
+        },
+        {
+            "_id": "control.refresh",
+            "type": "state",
+            "common": {
+                "role": "button",
+                "name": "Read the list of models again",
+                "type": "boolean",
+                "read": false,
+                "write": true,
+                "def": false
+            },
+            "native": {}
         }
     ]
 }
