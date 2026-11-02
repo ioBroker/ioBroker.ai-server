@@ -83,7 +83,7 @@ export function toModelInfos(models: OllamaModel[], running: OllamaRunningModel[
 }
 
 /**
- * Size for humans, as Ollama shows it: decimal units
+ * Size for humans, as Ollama shows it: decimal units. A small file is shown as 1 MB, not as 0 MB.
  *
  * @param bytes size in bytes
  */
@@ -91,7 +91,7 @@ export function formatSize(bytes: number): string {
     if (bytes >= 1e9) {
         return `${(bytes / 1e9).toFixed(1)} GB`;
     }
-    return `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+    return `${bytes > 0 ? Math.max(1, Math.round(bytes / 1e6)) : 0} MB`;
 }
 
 /**

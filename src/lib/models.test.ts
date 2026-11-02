@@ -59,6 +59,12 @@ describe('models', () => {
             expect(formatSize(13_793_441_566)).to.equal('13.8 GB');
             expect(formatSize(815_000_000)).to.equal('815 MB');
         });
+
+        it('shows a small file as 1 MB and nothing as 0 MB', () => {
+            expect(formatSize(25_000)).to.equal('1 MB');
+            // the total size without any model
+            expect(formatSize(0)).to.equal('0 MB');
+        });
     });
 
     describe('RECOMMENDED_MODELS', () => {

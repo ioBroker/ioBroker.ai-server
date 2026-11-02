@@ -61,7 +61,7 @@ function formatSize(bytes) {
   if (bytes >= 1e9) {
     return `${(bytes / 1e9).toFixed(1)} GB`;
   }
-  return `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+  return `${bytes > 0 ? Math.max(1, Math.round(bytes / 1e6)) : 0} MB`;
 }
 function modelOptions(installed) {
   const options = [...installed].sort((a, b) => a.name.localeCompare(b.name)).map((model) => ({
