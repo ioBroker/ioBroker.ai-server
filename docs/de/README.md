@@ -85,6 +85,10 @@ Reiter **Docker** (nur beim Backend "Docker-Container"):
 | Container-Image automatisch aktualisieren   | standardmäßig aus. Wenn an, wird beim Start der Instanz ein neueres Image von `ollama/ollama` geladen |
 | Container beim Stoppen der Instanz anhalten | standardmäßig aus, damit ein Neustart des Adapters das Modell im Speicher lässt |
 
+Wird die Hardware geändert oder auf den externen Server umgestellt, stoppt die Instanz beim Neustart nach dem Speichern
+den Container der vorherigen Auswahl. Er wird nur gestoppt, nicht gelöscht: Beim Zurückwechseln startet derselbe
+Container wieder, mit den bereits heruntergeladenen Modellen.
+
 NVIDIA-Grafikkarten werden noch nicht unterstützt.
 
 ## Modelle
@@ -282,27 +286,6 @@ Beim ersten Start lädt `@iobroker/plugin-docker` das Image `ollama/ollama:lates
 startet. Bis der Download fertig ist, wird die Instanz als nicht laufend angezeigt. Im Log steht
 `Pulling image ollama/ollama:latest for own container iob_ai_server_0_ollama. This may take some time...`.
 Auf einem Raspberry Pi 5 dauerte das etwa 5 Minuten. Spätere Starts sind schnell, weil das Image schon da ist.
-
-### Wechsel zwischen CPU, ROCm und externem Server
-
-Bis `@iobroker/plugin-docker` 1.2.1 wird der Container der vorherigen Auswahl nicht gestoppt, wenn das Backend oder die
-Hardware in den Instanzeinstellungen geändert wird. Er läuft weiter und belegt den Port:
-
-- nach dem Wechsel von CPU auf ROCm (oder zurück) kann der neue Container den Port nicht belegen und startet nicht;
-- nach dem Wechsel auf einen externen Server läuft das alte Ollama weiter und belegt Speicher.
-
-Den alten Container einmal von Hand stoppen. Die Namen enthalten die Instanznummer, hier für Instanz 0:
-
-```bash
-sudo docker stop iob_ai_server_0_ollama        # CPU-Container
-sudo docker stop iob_ai_server_0_ollama-rocm   # ROCm-Container
-```
-
-Der Container wird nur gestoppt, nicht gelöscht. Beim Zurückwechseln startet der Adapter ihn wieder.
-
-Die Korrektur in plugin-docker ([ioBroker/plugin-docker#61](https://github.com/ioBroker/plugin-docker/pull/61)) ist
-übernommen, aber noch nicht veröffentlicht. Sobald sie veröffentlicht ist, setzt dieser Adapter die neue Version voraus
-und der Schritt oben entfällt.
 
 ### NVIDIA-Grafikkarten
 

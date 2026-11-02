@@ -94,6 +94,10 @@ Tab **Docker** (only for the backend "Docker container"):
 | Update the container image automatically   | off by default. If on, a newer `ollama/ollama` image is downloaded at the start of the instance |
 | Stop the container when the instance stops | off by default, so a restart of the adapter keeps the model in memory        |
 
+If you change the hardware or switch to the external server, the instance stops the container of the previous choice
+when it restarts after saving. The container is only stopped, not deleted: when you switch back, the same container is
+started again, together with the downloaded models.
+
 NVIDIA graphics cards are not supported yet.
 
 ## Models
@@ -286,27 +290,6 @@ On the first start, `@iobroker/plugin-docker` downloads the image `ollama/ollama
 Until the download is finished, the instance is shown as not running. The log shows
 `Pulling image ollama/ollama:latest for own container iob_ai_server_0_ollama. This may take some time...`.
 On a Raspberry Pi 5 this took about 5 minutes. Later starts are fast, as the image is already there.
-
-### Switching between CPU, ROCm and an external server
-
-Up to `@iobroker/plugin-docker` 1.2.1, the container of the previous choice is not stopped when you change the
-backend or the GPU type in the instance settings. It keeps running and keeps the port:
-
-- after switching from CPU to ROCm (or back), the new container cannot publish the port and does not start;
-- after switching to an external server, the old Ollama keeps running and uses memory.
-
-Stop the old container once by hand. The names contain the instance number, here for instance 0:
-
-```bash
-sudo docker stop iob_ai_server_0_ollama        # CPU container
-sudo docker stop iob_ai_server_0_ollama-rocm   # ROCm container
-```
-
-The container is only stopped, not deleted. When you switch back, the adapter starts it again.
-
-The fix for plugin-docker ([ioBroker/plugin-docker#61](https://github.com/ioBroker/plugin-docker/pull/61)) is merged,
-but not released yet. As soon as it is released, this adapter will require that version and the step above is no
-longer necessary.
 
 ### NVIDIA graphics cards
 
