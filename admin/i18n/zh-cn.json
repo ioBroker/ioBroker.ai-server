@@ -7,7 +7,7 @@
     "Docker": "Docker",
     "Docker status": "Docker状态",
     "External server URL": "外部服务器网址",
-    "General": "一般的",
+    "General": "常规",
     "Hardware": "硬件",
     "Invalid URL": "无效的 URL，预期的，例如http://192.168.1.50:11434",
     "Invalid duration": "预期持续时间无效，例如5m、1h、0 或 -1",

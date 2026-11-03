@@ -7,7 +7,7 @@
     "Docker": "Docker",
     "Docker status": "Статус докера",
     "External server URL": "URL внешнего сервера",
-    "General": "Общий",
+    "General": "Общие",
     "Hardware": "Аппаратное обеспечение",
     "Invalid URL": "Ожидается неверный URL-адрес, например. http://192.168.1.50:11434",
     "Invalid duration": "Недопустимая длительность, ожидается, например, 5m, 1h, 0 или -1",
