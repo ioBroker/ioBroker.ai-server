@@ -24,6 +24,32 @@ Was er nicht macht:
 Andere Adapter (javascript, admin, ai-toolbox, ai-assistant) können den Ollama-Endpunkt direkt nutzen, siehe
 [Nutzung durch andere Adapter](#nutzung-durch-andere-adapter).
 
+## Erste Schritte
+
+1. **Host vorbereiten.** Für das Backend "Docker-Container" muss Docker installiert sein und der Benutzer `iobroker` in
+   der Gruppe `docker` stehen, siehe [Voraussetzungen](#voraussetzungen). Ohne Docker Ollama selbst installieren und
+   das Backend "Externer Ollama-Server" wählen.
+2. **Adapter installieren und eine Instanz anlegen.** Beim ersten Start wird das Image von Ollama heruntergeladen, das
+   dauert mehrere Minuten, siehe [Der erste Start dauert mehrere Minuten](#der-erste-start-dauert-mehrere-minuten).
+   Die Instanz ist bereit, wenn `info.connection` gleich `true` und `info.status` gleich `ready` ist.
+3. **Instanzeinstellungen prüfen.** Der Reiter "Docker" zeigt, ob Docker nutzbar ist. Für den Anfang passen die
+   Standardwerte: Hardware "CPU", Bind-Adresse `127.0.0.1`, Port 11434.
+4. **Ein Modell herunterladen.** Im Reiter "Modelle" auf "Modell herunterladen" klicken und einen Namen eintragen,
+   z. B. `qwen3:1.7b`. Ein Modell wählen, das in den freien Arbeitsspeicher passt, siehe
+   [Arbeitsspeicher](#arbeitsspeicher).
+5. **Als Standardmodell wählen.** Im Reiter "Allgemein" als "Standardmodell" auswählen (heruntergeladene Modelle sind
+   mit ✓ markiert) und speichern. Anfragen ohne Modellangabe nutzen es.
+6. **Eine Frage stellen.** Im Reiter "Objekte" von admin eine Frage in `ai-server.0.chat.prompt` schreiben. Die Antwort
+   erscheint in `ai-server.0.chat.response`, währenddessen ist `chat.running` gleich `true`. Die erste Antwort dauert
+   länger, weil das Modell erst in den Speicher geladen wird. Kommt keine Antwort, nennen `info.lastError` und das Log
+   den Grund.
+7. **Geschwindigkeit prüfen.** `metrics.lastDuration` zeigt, wie lange die Antwort gedauert hat, und
+   `metrics.tokensPerSecond`, wie schnell das Modell schreibt: Bei 5 Tokens pro Sekunde dauert eine Antwort mit
+   100 Tokens (etwa 60 deutsche Wörter) 20 Sekunden. Ist das zu langsam, ein kleineres Modell probieren; sind die
+   Antworten schlecht, ein größeres.
+8. **Nutzen.** In Skripten mit `sendTo`, siehe [Anfragen an das Modell](#anfragen-an-das-modell), oder in anderen
+   Adaptern über den OpenAI-kompatiblen Endpunkt, siehe [Nutzung durch andere Adapter](#nutzung-durch-andere-adapter).
+
 ## Voraussetzungen
 
 - js-controller 7.1.0 oder neuer, admin 7.8.21 oder neuer, Node.js 22.19 oder neuer.
@@ -36,7 +62,8 @@ Andere Adapter (javascript, admin, ai-toolbox, ai-assistant) können den Ollama-
     iob restart
     ```
   - Images: `ollama/ollama:latest` für die CPU, `ollama/ollama:rocm` für AMD-Grafikkarten (ROCm).
-    Die Modelle liegen im Docker-Volume `iob_ai_server_0_models` (für Instanz 0). Dieses Volume ist nicht Teil des
+    Die Modelle liegen im Docker-Volume `iob_ai_server_0_models` (für Instanz 0), siehe
+    [Wo die Modelle gespeichert werden](#wo-die-modelle-gespeichert-werden). Dieses Volume ist nicht Teil des
     ioBroker-Backups: Modelle sind mehrere GB groß und können jederzeit neu heruntergeladen werden.
 - Für das Backend "Externer Ollama-Server": ein laufendes Ollama, das vom ioBroker-Host aus erreichbar ist. Unter
   Windows [Ollama für Windows](https://ollama.com/download) installieren und dieses Backend wählen.
@@ -105,6 +132,45 @@ Vorher den freien Arbeitsspeicher prüfen, siehe [Arbeitsspeicher](#arbeitsspeic
 Für weitere Modelle "Modell herunterladen" im Reiter "Modelle" nutzen (siehe unten), den Namen in
 `ai-server.0.control.pull` schreiben oder `sendTo` nutzen. Der Fortschritt steht in `control.pullProgress` (0-100 %),
 Fehler im Log und in `info.lastError`. Es läuft immer nur ein Download gleichzeitig.
+
+### Wo die Modelle gespeichert werden
+
+Beim Backend "Docker-Container" liegen die Modelle im Docker-Volume `iob_ai_server_0_models` (für Instanz 0), im
+Datenverzeichnis von Docker auf dem Host. Dieser Befehl zeigt den Pfad:
+
+```bash
+sudo docker volume inspect iob_ai_server_0_models --format '{{ .Mountpoint }}'
+```
+
+Standardmäßig ist das `/var/lib/docker/volumes/iob_ai_server_0_models/_data` auf der Systemplatte, beim Raspberry Pi
+meist die SD-Karte. Um die Modelle auf einer SSD zu speichern, das Datenverzeichnis von Docker verschieben
+(`data-root`, siehe [Docker-Dokumentation](https://docs.docker.com/engine/daemon/#daemon-data-directory)). Damit
+ziehen alle Volumes des Hosts um, und auch die Images und Container, außer Docker nutzt den containerd-Image-Store
+(dann bleiben sie in `/var/lib/containerd`). Alle Container stehen währenddessen. Beispiel für eine unter `/ssd`
+eingehängte SSD:
+
+1. Docker stoppen und seine Daten kopieren:
+   ```bash
+   sudo systemctl stop docker docker.socket
+   sudo mkdir -p /ssd/docker-data
+   sudo cp -a /var/lib/docker/. /ssd/docker-data/
+   ```
+2. Das neue Verzeichnis in `/etc/docker/daemon.json` eintragen (die Datei anlegen, falls es sie nicht gibt; gibt es
+   sie, die Zeile zu den übrigen Einstellungen hinzufügen):
+   ```json
+   { "data-root": "/ssd/docker-data" }
+   ```
+3. Docker starten und das Verzeichnis prüfen:
+   ```bash
+   sudo systemctl start docker
+   sudo docker info --format '{{ .DockerRootDir }}'
+   ```
+
+Wenn alles wieder läuft, kann das alte Verzeichnis `/var/lib/docker` gelöscht werden.
+
+Beim Backend "Externer Ollama-Server" liegen die Modelle dort, wo dieser Server sie speichert: standardmäßig unter
+`/usr/share/ollama/.ollama/models` (Linux), `~/.ollama/models` (macOS) bzw. `C:\Users\<Benutzer>\.ollama\models`
+(Windows), oder im Verzeichnis der Umgebungsvariablen `OLLAMA_MODELS`.
 
 ### Reiter "Modelle"
 
@@ -315,6 +381,41 @@ Beide haben einen Reiter "Custom" für einen eigenen Inferenz-Server:
 ai-toolbox wartet höchstens 30 Sekunden auf eine Antwort, das lässt sich nicht ändern. Das Modell geladen halten und ein
 kleines wählen. In ai-assistant die "Zeitüberschreitung (in Sekunden)" (Standard 30) auf einer CPU auf 120 oder mehr
 erhöhen.
+
+## Fehlersuche
+
+Fehler stehen im Log und in `info.lastError`. Mit der Protokollstufe `debug` für die Instanz erscheint jede Anfrage im
+Log, Prompts und Antworten gekürzt auf 200 Zeichen.
+
+**Die Instanz läuft nach dem ersten Start mehrere Minuten nicht.** Das Image von Ollama wird heruntergeladen, siehe
+[Der erste Start dauert mehrere Minuten](#der-erste-start-dauert-mehrere-minuten).
+
+**`info.status` ist `error`, im Log steht "Docker is not available on this host".** Docker ist nicht installiert, oder
+der Benutzer `iobroker` hat keinen Zugriff darauf. Docker Engine installieren und `iobroker` zur Gruppe `docker`
+hinzufügen (siehe [Voraussetzungen](#voraussetzungen)) oder das Backend "Externer Ollama-Server" wählen.
+
+**Im Log steht "Ollama does not answer yet".** Der Container startet noch, oder der externe Server ist nicht
+erreichbar. Der Adapter versucht es weiter. Beim externen Server die URL prüfen: `http://<Adresse>:11434/api/version`
+im Browser geöffnet muss die Version von Ollama zeigen.
+
+**Der Reiter "Docker" meldet, dass Docker nicht geprüft werden kann.** Der js-controller des Hosts, auf dem die Instanz
+läuft, ist zu alt, um Docker für admin zu prüfen. Es fehlt nur die Anzeige; der Adapter nutzt Docker trotzdem.
+
+**"No model given and no default model set in the instance settings".** Im Reiter "Allgemein" ein Standardmodell
+wählen oder das Modell in der Anfrage angeben (`model` bei `sendTo`, `chat.model` bei den Datenpunkten).
+
+**Ollama meldet, dass das Modell nicht gefunden wurde.** Das Modell ist nicht heruntergeladen, oder der Name ist falsch
+geschrieben. Namen werden wie in Ollama geschrieben, mit dem Tag nach dem Doppelpunkt, z. B. `qwen3:1.7b`. Die
+heruntergeladenen Modelle stehen im Reiter "Modelle".
+
+**"model requires more system memory".** Das Modell passt nicht in den freien Arbeitsspeicher. Ein
+kleineres Modell wählen (siehe [Arbeitsspeicher](#arbeitsspeicher)) oder andere Modelle entladen.
+
+**"Ollama did not answer within 300 s".** Das Modell ist für diese Anfrage auf dieser Hardware zu langsam. Ein kleineres
+Modell nehmen, das Nachdenken ausschalten (`think: false`) oder das "Zeitlimit pro Anfrage" erhöhen.
+
+**Die erste Antwort nach einer Pause dauert viel länger.** Das Modell wurde entladen und muss neu geladen werden.
+"Modell im Speicher halten" erhöhen, z. B. auf `1h` oder `-1`.
 
 ## Bekannte Einschränkungen
 

@@ -34,6 +34,29 @@ What it does not do:
 Other adapters (javascript, admin, ai-toolbox, ai-assistant) can use the Ollama endpoint directly, see
 [Use by other adapters](#use-by-other-adapters).
 
+## Getting started
+
+1. **Prepare the host.** For the backend "Docker container", Docker has to be installed and the user `iobroker` has to
+   be in the group `docker`, see [Requirements](#requirements). Without Docker, install Ollama yourself and use the
+   backend "External Ollama server".
+2. **Install the adapter and create an instance.** On the first start, the image of Ollama is downloaded, which takes
+   several minutes, see [The first start takes several minutes](#the-first-start-takes-several-minutes). The instance
+   is ready when `info.connection` is `true` and `info.status` is `ready`.
+3. **Check the instance settings.** The tab "Docker" shows whether Docker can be used. The defaults fit for a start:
+   hardware "CPU", bind address `127.0.0.1`, port 11434.
+4. **Download a model.** In the tab "Models", click "Download model" and enter a name, e.g. `qwen3:1.7b`. Choose a
+   model that fits into the free memory, see [Memory](#memory).
+5. **Make it the default model.** Select it as "Default model" in the tab "General" (downloaded models are marked
+   with ✓) and save. Requests without a model use it.
+6. **Ask a question.** In the tab "Objects" of admin, write a question into `ai-server.0.chat.prompt`. The answer
+   appears in `ai-server.0.chat.response`; `chat.running` is `true` meanwhile. The first answer takes longer, as the
+   model is loaded into memory first. If no answer comes, `info.lastError` and the log say why.
+7. **Check the speed.** `metrics.lastDuration` shows how long the answer took and `metrics.tokensPerSecond` how fast
+   the model writes: at 5 tokens per second, an answer of 100 tokens (about 75 words) takes 20 seconds. If that is too
+   slow, try a smaller model; if the answers are poor, a larger one.
+8. **Use it.** In scripts with `sendTo`, see [Requests to the model](#requests-to-the-model), or in other adapters via
+   the OpenAI-compatible endpoint, see [Use by other adapters](#use-by-other-adapters).
+
 ## Requirements
 
 - js-controller 7.1.0 or newer, admin 7.8.21 or newer, Node.js 22.19 or newer.
@@ -45,8 +68,9 @@ Other adapters (javascript, admin, ai-toolbox, ai-assistant) can use the Ollama 
     iob restart
     ```
   - Images: `ollama/ollama:latest` for the CPU, `ollama/ollama:rocm` for AMD graphics cards (ROCm).
-    The models are stored in the Docker volume `iob_ai_server_0_models` (for instance 0). This volume is not part of
-    the ioBroker backup: models are several GB in size and can be downloaded again at any time.
+    The models are stored in the Docker volume `iob_ai_server_0_models` (for instance 0), see
+    [Where the models are stored](#where-the-models-are-stored). This volume is not part of the ioBroker backup:
+    models are several GB in size and can be downloaded again at any time.
 - For the backend "External Ollama server": a running Ollama that can be reached from the ioBroker host. On Windows,
   install [Ollama for Windows](https://ollama.com/download) and use this backend.
 
@@ -114,6 +138,44 @@ Check the free memory first, see [Memory](#memory).
 To download more models, use "Download model" in the tab "Models" (see below), write the name into
 `ai-server.0.control.pull` or use `sendTo`. The progress is shown in `control.pullProgress` (0-100 %), errors in the
 log and in `info.lastError`. Only one download runs at a time.
+
+### Where the models are stored
+
+With the backend "Docker container", the models are stored in the Docker volume `iob_ai_server_0_models` (for
+instance 0), in the data directory of Docker on the host. This command shows the path:
+
+```bash
+sudo docker volume inspect iob_ai_server_0_models --format '{{ .Mountpoint }}'
+```
+
+By default, it is `/var/lib/docker/volumes/iob_ai_server_0_models/_data` on the system disk, on a Raspberry Pi usually
+the SD card. To store the models on an SSD, move the data directory of Docker (`data-root`, see the
+[Docker documentation](https://docs.docker.com/engine/daemon/#daemon-data-directory)). This moves all volumes of the
+host, and also the images and containers unless Docker uses the containerd image store (then they stay in
+`/var/lib/containerd`). All containers stop meanwhile. Example for an SSD mounted at `/ssd`:
+
+1. Stop Docker and copy its data:
+   ```bash
+   sudo systemctl stop docker docker.socket
+   sudo mkdir -p /ssd/docker-data
+   sudo cp -a /var/lib/docker/. /ssd/docker-data/
+   ```
+2. Enter the new directory in `/etc/docker/daemon.json` (create the file if it does not exist; if it exists, add the
+   line to the other settings):
+   ```json
+   { "data-root": "/ssd/docker-data" }
+   ```
+3. Start Docker and check the directory:
+   ```bash
+   sudo systemctl start docker
+   sudo docker info --format '{{ .DockerRootDir }}'
+   ```
+
+When everything runs again, the old directory `/var/lib/docker` can be deleted.
+
+With the backend "External Ollama server", the models are where that server stores them: by default
+`/usr/share/ollama/.ollama/models` on Linux, `~/.ollama/models` on macOS and `C:\Users\<user>\.ollama\models` on
+Windows, or in the directory of the environment variable `OLLAMA_MODELS`.
 
 ### Tab "Models"
 
@@ -317,6 +379,40 @@ Both have a tab "Custom" for an own inference server:
 
 ai-toolbox waits at most 30 seconds for an answer, and this cannot be changed. Keep the model loaded and use a small
 one. In ai-assistant, raise "Timeout (in seconds)" (default 30) to 120 or more on a CPU.
+
+## Troubleshooting
+
+Errors are written to the log and to `info.lastError`. Set the log level of the instance to `debug` to see every
+request, with prompts and answers shortened to 200 characters.
+
+**The instance does not run for several minutes after the first start.** The image of Ollama is being downloaded, see
+[The first start takes several minutes](#the-first-start-takes-several-minutes).
+
+**`info.status` is `error`, the log says "Docker is not available on this host".** Docker is not installed, or the user
+`iobroker` has no access to it. Install Docker Engine and add `iobroker` to the group `docker` (see
+[Requirements](#requirements)), or use the backend "External Ollama server".
+
+**The log says "Ollama does not answer yet".** The container is still starting, or the external server cannot be
+reached. The adapter keeps trying. For the external server, check the URL: `http://<address>:11434/api/version` opened
+in a browser has to show the version of Ollama.
+
+**The tab "Docker" says that Docker cannot be checked.** The js-controller of the host the instance runs on is too old
+to check Docker for admin. Only the display is missing; the adapter uses Docker anyway.
+
+**"No model given and no default model set in the instance settings".** Select a default model in the tab "General",
+or name the model in the request (`model` in `sendTo`, `chat.model` for the states).
+
+**Ollama says that the model is not found.** The model is not downloaded, or the name is misspelled. Names are written
+as in Ollama, with the tag after the colon, e.g. `qwen3:1.7b`. The downloaded models are listed in the tab "Models".
+
+**"model requires more system memory".** The model does not fit into the free memory. Choose a
+smaller model (see [Memory](#memory)) or unload other models.
+
+**"Ollama did not answer within 300 s".** The model is too slow for this request on this hardware. Use a smaller model,
+switch thinking off (`think: false`) or raise "Request timeout".
+
+**The first answer after a pause takes much longer.** The model was unloaded and has to be loaded again. Raise "Keep
+model in memory", e.g. to `1h` or `-1`.
 
 ## Known limitations
 
