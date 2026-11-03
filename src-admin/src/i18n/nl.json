@@ -1,0 +1,21 @@
+{
+    "custom_ai-server_%s tokens": "%s tokens",
+    "custom_ai-server_%s tokens/s": "%s tokens/s",
+    "custom_ai-server_Clear the chat": "Chat wissen",
+    "custom_ai-server_Model": "Model",
+    "custom_ai-server_No answer from the instance": "Geen antwoord van de instantie",
+    "custom_ai-server_No messages yet. The model sees the whole conversation until the chat is cleared.": "Nog geen berichten. Het model ziet het hele gesprek totdat de chat wordt gewist.",
+    "custom_ai-server_No model downloaded yet. Download one in the tab \"Models\".": "Nog geen model gedownload. Download er een op het tabblad \"Modellen\".",
+    "custom_ai-server_Prompt: %s tokens": "Prompt: %s tokens",
+    "custom_ai-server_Reload the list of models": "Lijst met modellen opnieuw laden",
+    "custom_ai-server_Send (Enter)": "Verzenden (Enter)",
+    "custom_ai-server_Start the instance to chat.": "Start de instantie om te chatten.",
+    "custom_ai-server_System prompt": "Systeemprompt",
+    "custom_ai-server_Think before answering": "Nadenken voor het antwoord",
+    "custom_ai-server_Thinking": "Denkproces",
+    "custom_ai-server_Thinking models think first. That takes many times longer.": "Denkende modellen denken eerst na. Dat duurt vele malen langer.",
+    "custom_ai-server_Type a message…": "Typ een bericht…",
+    "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "Wachten op het antwoord. Het eerste duurt langer, omdat het model wordt geladen.",
+    "custom_ai-server_e.g. Answer briefly.": "bijv. Antwoord kort.",
+    "custom_ai-server_loaded": "geladen"
+}

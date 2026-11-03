@@ -39,20 +39,21 @@ Andere Adapter (javascript, admin, ai-toolbox, ai-assistant) können den Ollama-
    [Arbeitsspeicher](#arbeitsspeicher).
 5. **Als Standardmodell wählen.** Im Reiter "Allgemein" als "Standardmodell" auswählen (heruntergeladene Modelle sind
    mit ✓ markiert) und speichern. Anfragen ohne Modellangabe nutzen es.
-6. **Eine Frage stellen.** Im Reiter "Objekte" von admin eine Frage in `ai-server.0.chat.prompt` schreiben. Die Antwort
-   erscheint in `ai-server.0.chat.response`, währenddessen ist `chat.running` gleich `true`. Die erste Antwort dauert
-   länger, weil das Modell erst in den Speicher geladen wird. Kommt keine Antwort, nennen `info.lastError` und das Log
-   den Grund.
-7. **Geschwindigkeit prüfen.** `metrics.lastDuration` zeigt, wie lange die Antwort gedauert hat, und
-   `metrics.tokensPerSecond`, wie schnell das Modell schreibt: Bei 5 Tokens pro Sekunde dauert eine Antwort mit
-   100 Tokens (etwa 60 deutsche Wörter) 20 Sekunden. Ist das zu langsam, ein kleineres Modell probieren; sind die
-   Antworten schlecht, ein größeres.
+6. **Eine Frage stellen.** Im Reiter "Chat" der Instanzeinstellungen eine Frage eingeben und Enter drücken, siehe
+   [Reiter "Chat"](#reiter-chat). Die erste Antwort dauert länger, weil das Modell erst in den Speicher geladen wird.
+   Ohne den Reiter (admin älter als 8.0.1) die Frage im Reiter "Objekte" in `ai-server.0.chat.prompt` schreiben; die
+   Antwort erscheint in `ai-server.0.chat.response`. Kommt keine Antwort, nennen `info.lastError` und das Log den Grund.
+7. **Geschwindigkeit prüfen.** Unter jeder Antwort zeigt der Chat, wie lange sie gedauert hat und wie schnell das
+   Modell schreibt (auch in `metrics.lastDuration` und `metrics.tokensPerSecond`): Bei 5 Tokens pro Sekunde dauert eine
+   Antwort mit 100 Tokens (etwa 60 deutsche Wörter) 20 Sekunden. Ist das zu langsam, ein kleineres Modell probieren;
+   sind die Antworten schlecht, ein größeres.
 8. **Nutzen.** In Skripten mit `sendTo`, siehe [Anfragen an das Modell](#anfragen-an-das-modell), oder in anderen
    Adaptern über den OpenAI-kompatiblen Endpunkt, siehe [Nutzung durch andere Adapter](#nutzung-durch-andere-adapter).
 
 ## Voraussetzungen
 
-- js-controller 7.1.0 oder neuer, admin 7.8.21 oder neuer, Node.js 22.19 oder neuer.
+- js-controller 7.1.0 oder neuer, admin 7.8.21 oder neuer (der Reiter "Chat" braucht admin 8.0.1 oder neuer),
+  Node.js 22.19 oder neuer.
 - Für das Backend "Docker-Container":
   - ein Linux-Host (z. B. Raspberry Pi OS, Debian, Ubuntu) mit Docker Engine 20.10 oder neuer;
   - der Benutzer `iobroker` braucht Zugriff auf den Docker-Socket. Ihn zur Gruppe `docker` hinzufügen und ioBroker
@@ -250,12 +251,30 @@ if (answer.error) {
 
 ## Anfragen an das Modell
 
+### Reiter "Chat"
+
+Der Reiter "Chat" in den Instanzeinstellungen ist zum Ausprobieren der Modelle da. Ein heruntergeladenes Modell
+wählen, eine Nachricht eingeben und Enter drücken (Umschalt+Enter beginnt eine neue Zeile). Jede Nachricht wird
+zusammen mit dem ganzen Verlauf geschickt, das Modell weiß also, was vorher gesagt wurde; "Chat leeren" beginnt einen
+neuen. Unter jeder Antwort stehen das Modell, die Dauer, die Anzahl der Tokens und die Geschwindigkeit in Tokens pro
+Sekunde; die Tokens des Prompts zeigt ein Tooltip.
+
+- "Systemprompt" wird bei jeder Nachricht mitgeschickt, z. B. `Antworte kurz auf Deutsch.`
+- "Vor der Antwort nachdenken" lässt ein denkendes Modell zuerst nachdenken; das Nachdenken lässt sich über der Antwort
+  aufklappen. Standardmäßig aus, weil es ein Vielfaches länger dauert.
+- Der Verlauf bleibt erhalten, solange die Einstellungen offen sind, auch beim Wechsel der Reiter, wird aber nicht
+  gespeichert.
+- Die Nachrichten laufen wie alle anderen Anfragen durch die Warteschlange (siehe
+  [Warteschlange und Metriken](#warteschlange-und-metriken)) und aktualisieren die Datenpunkte `metrics.*`.
+
+Der Reiter braucht admin 8.0.1 oder neuer.
+
 ### Mit `sendTo`
 
 | Befehl        | Nachricht                                                                         | Ergebnis                                                              |
 |---------------|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| `chat`        | `{ model?, messages: [{ role, content, images? }], system?, options?, format?, tools?, think? }` | `{ message, model, durationMs, promptTokens, completionTokens }` |
-| `generate`    | `{ model?, prompt, system?, options?, format?, think? }`                          | `{ response, thinking?, model, durationMs, promptTokens, completionTokens }` |
+| `chat`        | `{ model?, messages: [{ role, content, images? }], system?, options?, format?, tools?, think? }` | `{ message, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
+| `generate`    | `{ model?, prompt, system?, options?, format?, think? }`                          | `{ response, thinking?, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
 | `status`      | `{}`                                                                              | `{ connected, status, version, baseUrl, loadedModels }`               |
 | `getEndpoint` | `{}`                                                                              | `{ ollama, openai }`, z. B. `http://127.0.0.1:11434` und `…/v1`       |
 

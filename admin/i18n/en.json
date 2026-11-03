@@ -1,6 +1,7 @@
 {
     "Backend": "Backend",
     "Bind address": "Bind address",
+    "Chat": "Chat",
     "Default model": "Default model",
     "Delete unused models after": "Delete unused models after",
     "Docker": "Docker",

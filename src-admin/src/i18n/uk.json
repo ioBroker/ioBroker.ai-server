@@ -1,0 +1,21 @@
+{
+    "custom_ai-server_%s tokens": "токенів: %s",
+    "custom_ai-server_%s tokens/s": "%s токенів/с",
+    "custom_ai-server_Clear the chat": "Очистити чат",
+    "custom_ai-server_Model": "Модель",
+    "custom_ai-server_No answer from the instance": "Немає відповіді від екземпляра",
+    "custom_ai-server_No messages yet. The model sees the whole conversation until the chat is cleared.": "Повідомлень ще немає. Модель бачить усю розмову, доки чат не буде очищено.",
+    "custom_ai-server_No model downloaded yet. Download one in the tab \"Models\".": "Моделі ще не завантажено. Завантажте модель на вкладці \"Моделі\".",
+    "custom_ai-server_Prompt: %s tokens": "Запит: токенів %s",
+    "custom_ai-server_Reload the list of models": "Оновити список моделей",
+    "custom_ai-server_Send (Enter)": "Надіслати (Enter)",
+    "custom_ai-server_Start the instance to chat.": "Запустіть екземпляр, щоб почати чат.",
+    "custom_ai-server_System prompt": "Системний запит",
+    "custom_ai-server_Think before answering": "Міркувати перед відповіддю",
+    "custom_ai-server_Thinking": "Міркування",
+    "custom_ai-server_Thinking models think first. That takes many times longer.": "Моделі з міркуваннями спочатку думають. Це триває в рази довше.",
+    "custom_ai-server_Type a message…": "Введіть повідомлення…",
+    "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "Очікування відповіді. Перша триває довше, бо модель завантажується.",
+    "custom_ai-server_e.g. Answer briefly.": "наприклад, Відповідай коротко.",
+    "custom_ai-server_loaded": "завантажена"
+}

@@ -280,7 +280,8 @@ handleCommand_fn = async function(command, message) {
         model: response.model,
         durationMs: metrics.durationMs,
         promptTokens: metrics.promptTokens,
-        completionTokens: metrics.completionTokens
+        completionTokens: metrics.completionTokens,
+        tokensPerSecond: metrics.tokensPerSecond
       };
     }
     case "generate": {
@@ -291,7 +292,8 @@ handleCommand_fn = async function(command, message) {
         model: response.model,
         durationMs: metrics.durationMs,
         promptTokens: metrics.promptTokens,
-        completionTokens: metrics.completionTokens
+        completionTokens: metrics.completionTokens,
+        tokensPerSecond: metrics.tokensPerSecond
       };
     }
     case "status":

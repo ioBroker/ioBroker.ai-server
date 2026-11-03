@@ -17,6 +17,9 @@ export default [
             'admin/words.js',
             'admin/admin.d.ts',
             'admin/blockly.js',
+            // the chat tab: built by vite from src-admin into admin/custom
+            'admin/custom/',
+            'src-admin/',
             '**/adapter-config.d.ts',
             'widgets/**/*.js'
         ],

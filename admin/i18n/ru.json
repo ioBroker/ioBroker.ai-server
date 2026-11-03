@@ -1,6 +1,7 @@
 {
     "Backend": "Бэкэнд",
     "Bind address": "Привязать адрес",
+    "Chat": "Чат",
     "Default model": "Модель по умолчанию",
     "Delete unused models after": "Удалять неиспользуемые модели через",
     "Docker": "Докер",

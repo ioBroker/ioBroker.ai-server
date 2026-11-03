@@ -48,18 +48,20 @@ Other adapters (javascript, admin, ai-toolbox, ai-assistant) can use the Ollama 
    model that fits into the free memory, see [Memory](#memory).
 5. **Make it the default model.** Select it as "Default model" in the tab "General" (downloaded models are marked
    with ✓) and save. Requests without a model use it.
-6. **Ask a question.** In the tab "Objects" of admin, write a question into `ai-server.0.chat.prompt`. The answer
-   appears in `ai-server.0.chat.response`; `chat.running` is `true` meanwhile. The first answer takes longer, as the
-   model is loaded into memory first. If no answer comes, `info.lastError` and the log say why.
-7. **Check the speed.** `metrics.lastDuration` shows how long the answer took and `metrics.tokensPerSecond` how fast
-   the model writes: at 5 tokens per second, an answer of 100 tokens (about 75 words) takes 20 seconds. If that is too
-   slow, try a smaller model; if the answers are poor, a larger one.
+6. **Ask a question.** In the tab "Chat" of the instance settings, type a question and press Enter, see
+   [Tab "Chat"](#tab-chat). The first answer takes longer, as the model is loaded into memory first. Without the tab
+   (admin older than 8.0.1), write the question into `ai-server.0.chat.prompt` in the tab "Objects"; the answer appears
+   in `ai-server.0.chat.response`. If no answer comes, `info.lastError` and the log say why.
+7. **Check the speed.** Below every answer, the chat shows how long it took and how fast the model writes (also in
+   `metrics.lastDuration` and `metrics.tokensPerSecond`): at 5 tokens per second, an answer of 100 tokens (about
+   75 words) takes 20 seconds. If that is too slow, try a smaller model; if the answers are poor, a larger one.
 8. **Use it.** In scripts with `sendTo`, see [Requests to the model](#requests-to-the-model), or in other adapters via
    the OpenAI-compatible endpoint, see [Use by other adapters](#use-by-other-adapters).
 
 ## Requirements
 
-- js-controller 7.1.0 or newer, admin 7.8.21 or newer, Node.js 22.19 or newer.
+- js-controller 7.1.0 or newer, admin 7.8.21 or newer (the tab "Chat" needs admin 8.0.1 or newer), Node.js 22.19 or
+  newer.
 - For the backend "Docker container":
   - a Linux host (e.g. Raspberry Pi OS, Debian, Ubuntu) with Docker Engine 20.10 or newer;
   - the user `iobroker` needs access to the Docker socket. Add it to the group `docker` and restart ioBroker:
@@ -252,12 +254,28 @@ if (answer.error) {
 
 ## Requests to the model
 
+### Tab "Chat"
+
+The tab "Chat" of the instance settings is for trying the models. Choose a downloaded model, type a message and press
+Enter (Shift+Enter starts a new line). Every message is sent together with the whole conversation, so the model knows
+what was said before; "Clear the chat" starts a new one. Below every answer, the model, the duration, the number of
+tokens and the speed in tokens per second are shown; the tokens of the prompt are shown as a tooltip.
+
+- "System prompt" is sent with every message, e.g. `Answer briefly in German.`
+- "Think before answering" lets a thinking model think first; the thinking can be opened above the answer. It is off by
+  default, as it takes many times longer.
+- The conversation is kept while the settings are open, also when switching the tabs, but it is not stored.
+- The messages go through the queue like all other requests (see [Queue and metrics](#queue-and-metrics)) and update
+  the states `metrics.*`.
+
+The tab needs admin 8.0.1 or newer.
+
 ### With `sendTo`
 
 | Command       | Message                                                                           | Result                                                                |
 |---------------|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| `chat`        | `{ model?, messages: [{ role, content, images? }], system?, options?, format?, tools?, think? }` | `{ message, model, durationMs, promptTokens, completionTokens }` |
-| `generate`    | `{ model?, prompt, system?, options?, format?, think? }`                          | `{ response, thinking?, model, durationMs, promptTokens, completionTokens }` |
+| `chat`        | `{ model?, messages: [{ role, content, images? }], system?, options?, format?, tools?, think? }` | `{ message, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
+| `generate`    | `{ model?, prompt, system?, options?, format?, think? }`                          | `{ response, thinking?, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
 | `status`      | `{}`                                                                              | `{ connected, status, version, baseUrl, loadedModels }`               |
 | `getEndpoint` | `{}`                                                                              | `{ ollama, openai }`, e.g. `http://127.0.0.1:11434` and `…/v1`        |
 
@@ -442,6 +460,7 @@ with ROCm, or an Ollama installed directly on the host with the backend "Externa
 * (GermanBluefox) tab "Models" (device manager): size and last use of every model, load, unload, delete, download with
   progress
 * (GermanBluefox) option to delete models that were not used for a number of days
+* (GermanBluefox) tab "Chat" in the instance settings to try the models; `chat` and `generate` return `tokensPerSecond`
 
 ## License
 MIT License

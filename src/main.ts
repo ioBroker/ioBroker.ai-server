@@ -292,6 +292,7 @@ class AiServer extends utils.Adapter {
                     durationMs: metrics.durationMs,
                     promptTokens: metrics.promptTokens,
                     completionTokens: metrics.completionTokens,
+                    tokensPerSecond: metrics.tokensPerSecond,
                 };
             }
 
@@ -304,6 +305,7 @@ class AiServer extends utils.Adapter {
                     durationMs: metrics.durationMs,
                     promptTokens: metrics.promptTokens,
                     completionTokens: metrics.completionTokens,
+                    tokensPerSecond: metrics.tokensPerSecond,
                 };
             }
 

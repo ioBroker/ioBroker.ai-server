@@ -1,0 +1,21 @@
+{
+    "custom_ai-server_%s tokens": "%s 个 token",
+    "custom_ai-server_%s tokens/s": "%s token/秒",
+    "custom_ai-server_Clear the chat": "清空聊天",
+    "custom_ai-server_Model": "模型",
+    "custom_ai-server_No answer from the instance": "实例没有响应",
+    "custom_ai-server_No messages yet. The model sees the whole conversation until the chat is cleared.": "还没有消息。在清空聊天之前，模型会看到整个对话。",
+    "custom_ai-server_No model downloaded yet. Download one in the tab \"Models\".": "尚未下载模型。请在\"模型\"选项卡中下载。",
+    "custom_ai-server_Prompt: %s tokens": "提示：%s 个 token",
+    "custom_ai-server_Reload the list of models": "重新加载模型列表",
+    "custom_ai-server_Send (Enter)": "发送（回车）",
+    "custom_ai-server_Start the instance to chat.": "启动实例后即可聊天。",
+    "custom_ai-server_System prompt": "系统提示",
+    "custom_ai-server_Think before answering": "回答前先思考",
+    "custom_ai-server_Thinking": "思考过程",
+    "custom_ai-server_Thinking models think first. That takes many times longer.": "思考型模型会先思考，耗时会长很多倍。",
+    "custom_ai-server_Type a message…": "输入消息…",
+    "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "正在等待回答。第一次回答需要更长时间，因为要先加载模型。",
+    "custom_ai-server_e.g. Answer briefly.": "例如：请简短回答。",
+    "custom_ai-server_loaded": "已加载"
+}

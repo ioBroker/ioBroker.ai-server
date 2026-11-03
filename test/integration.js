@@ -181,7 +181,12 @@ tests.integration(path.join(__dirname, '..'), {
                     system: 'Be brief',
                     messages: [{ role: 'user', content: 'Secret question' }],
                 });
-                expect(result).to.include({ model: 'qwen3:0.6b', promptTokens: 12, completionTokens: 5 });
+                expect(result).to.include({
+                    model: 'qwen3:0.6b',
+                    promptTokens: 12,
+                    completionTokens: 5,
+                    tokensPerSecond: 10,
+                });
                 expect(result.message).to.deep.equal({ role: 'assistant', content: 'Hello from the mock' });
                 expect(lastRequest('/api/chat').body).to.deep.equal({
                     model: 'qwen3:0.6b',

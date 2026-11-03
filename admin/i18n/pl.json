@@ -1,6 +1,7 @@
 {
     "Backend": "Zaplecze",
     "Bind address": "Powiąż adres",
+    "Chat": "Czat",
     "Default model": "Domyślny model",
     "Delete unused models after": "Usuwaj nieużywane modele po",
     "Docker": "Doker",

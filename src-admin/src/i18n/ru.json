@@ -1,0 +1,21 @@
+{
+    "custom_ai-server_%s tokens": "токенов: %s",
+    "custom_ai-server_%s tokens/s": "%s токенов/с",
+    "custom_ai-server_Clear the chat": "Очистить чат",
+    "custom_ai-server_Model": "Модель",
+    "custom_ai-server_No answer from the instance": "Нет ответа от экземпляра",
+    "custom_ai-server_No messages yet. The model sees the whole conversation until the chat is cleared.": "Сообщений пока нет. Модель видит весь разговор, пока чат не будет очищен.",
+    "custom_ai-server_No model downloaded yet. Download one in the tab \"Models\".": "Модели ещё не загружены. Загрузите модель на вкладке \"Модели\".",
+    "custom_ai-server_Prompt: %s tokens": "Запрос: токенов %s",
+    "custom_ai-server_Reload the list of models": "Обновить список моделей",
+    "custom_ai-server_Send (Enter)": "Отправить (Enter)",
+    "custom_ai-server_Start the instance to chat.": "Запустите экземпляр, чтобы начать чат.",
+    "custom_ai-server_System prompt": "Системный запрос",
+    "custom_ai-server_Think before answering": "Размышлять перед ответом",
+    "custom_ai-server_Thinking": "Размышления",
+    "custom_ai-server_Thinking models think first. That takes many times longer.": "Рассуждающие модели сначала размышляют. Это занимает в разы больше времени.",
+    "custom_ai-server_Type a message…": "Введите сообщение…",
+    "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "Ожидание ответа. Первый ответ занимает больше времени, так как модель загружается.",
+    "custom_ai-server_e.g. Answer briefly.": "например, Отвечай кратко.",
+    "custom_ai-server_loaded": "загружена"
+}

@@ -1,6 +1,7 @@
 {
     "Backend": "后端",
     "Bind address": "绑定地址",
+    "Chat": "聊天",
     "Default model": "默认型号",
     "Delete unused models after": "未使用的模型在以下时间后删除",
     "Docker": "码头工人",

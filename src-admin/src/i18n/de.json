@@ -1,0 +1,21 @@
+{
+    "custom_ai-server_%s tokens": "%s Tokens",
+    "custom_ai-server_%s tokens/s": "%s Tokens/s",
+    "custom_ai-server_Clear the chat": "Chat leeren",
+    "custom_ai-server_Model": "Modell",
+    "custom_ai-server_No answer from the instance": "Keine Antwort von der Instanz",
+    "custom_ai-server_No messages yet. The model sees the whole conversation until the chat is cleared.": "Noch keine Nachrichten. Das Modell sieht den ganzen Verlauf, bis der Chat geleert wird.",
+    "custom_ai-server_No model downloaded yet. Download one in the tab \"Models\".": "Noch kein Modell heruntergeladen. Eines im Reiter \"Modelle\" herunterladen.",
+    "custom_ai-server_Prompt: %s tokens": "Prompt: %s Tokens",
+    "custom_ai-server_Reload the list of models": "Modellliste neu laden",
+    "custom_ai-server_Send (Enter)": "Senden (Enter)",
+    "custom_ai-server_Start the instance to chat.": "Die Instanz starten, um zu chatten.",
+    "custom_ai-server_System prompt": "Systemprompt",
+    "custom_ai-server_Think before answering": "Vor der Antwort nachdenken",
+    "custom_ai-server_Thinking": "Nachdenken",
+    "custom_ai-server_Thinking models think first. That takes many times longer.": "Denkende Modelle denken zuerst nach. Das dauert ein Vielfaches länger.",
+    "custom_ai-server_Type a message…": "Nachricht eingeben…",
+    "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "Warte auf die Antwort. Die erste dauert länger, weil das Modell geladen wird.",
+    "custom_ai-server_e.g. Answer briefly.": "z. B. Antworte kurz.",
+    "custom_ai-server_loaded": "geladen"
+}

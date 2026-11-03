@@ -1,6 +1,7 @@
 {
     "Backend": "backend",
     "Bind address": "dirección de enlace",
+    "Chat": "Chat",
     "Default model": "Modelo predeterminado",
     "Delete unused models after": "Eliminar los modelos no usados después de",
     "Docker": "Estibador",

@@ -162,6 +162,24 @@
                 "overflow": "hidden"
             }
         },
+        "chatTab": {
+            "type": "panel",
+            "label": "Chat",
+            "items": {
+                "_chat": {
+                    "type": "custom",
+                    "url": "custom/customComponents.js",
+                    "name": "ConfigCustomAiServer/Components/ChatComponent",
+                    "guiApi": 2,
+                    "bundlerType": "module",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 12,
+                    "lg": 12,
+                    "xl": 12
+                }
+            }
+        },
         "dockerTab": {
             "type": "panel",
             "label": "Docker",

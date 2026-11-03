@@ -1,0 +1,21 @@
+{
+    "custom_ai-server_%s tokens": "%s jetons",
+    "custom_ai-server_%s tokens/s": "%s jetons/s",
+    "custom_ai-server_Clear the chat": "Effacer le chat",
+    "custom_ai-server_Model": "Modèle",
+    "custom_ai-server_No answer from the instance": "Pas de réponse de l'instance",
+    "custom_ai-server_No messages yet. The model sees the whole conversation until the chat is cleared.": "Pas encore de messages. Le modèle voit toute la conversation jusqu'à ce que le chat soit effacé.",
+    "custom_ai-server_No model downloaded yet. Download one in the tab \"Models\".": "Aucun modèle téléchargé. Téléchargez-en un dans l'onglet \"Modèles\".",
+    "custom_ai-server_Prompt: %s tokens": "Prompt : %s jetons",
+    "custom_ai-server_Reload the list of models": "Recharger la liste des modèles",
+    "custom_ai-server_Send (Enter)": "Envoyer (Entrée)",
+    "custom_ai-server_Start the instance to chat.": "Démarrez l'instance pour discuter.",
+    "custom_ai-server_System prompt": "Prompt système",
+    "custom_ai-server_Think before answering": "Réfléchir avant de répondre",
+    "custom_ai-server_Thinking": "Réflexion",
+    "custom_ai-server_Thinking models think first. That takes many times longer.": "Les modèles de raisonnement réfléchissent d'abord. Cela prend beaucoup plus de temps.",
+    "custom_ai-server_Type a message…": "Saisissez un message…",
+    "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "En attente de la réponse. La première prend plus de temps, car le modèle est chargé.",
+    "custom_ai-server_e.g. Answer briefly.": "p. ex. Réponds brièvement.",
+    "custom_ai-server_loaded": "chargé"
+}

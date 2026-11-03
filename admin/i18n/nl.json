@@ -1,6 +1,7 @@
 {
     "Backend": "Achterkant",
     "Bind address": "Bind adres",
+    "Chat": "Chat",
     "Default model": "Standaardmodel",
     "Delete unused models after": "Ongebruikte modellen verwijderen na",
     "Docker": "Dokwerker",

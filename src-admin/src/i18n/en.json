@@ -1,0 +1,21 @@
+{
+    "custom_ai-server_%s tokens": "%s tokens",
+    "custom_ai-server_%s tokens/s": "%s tokens/s",
+    "custom_ai-server_Clear the chat": "Clear the chat",
+    "custom_ai-server_Model": "Model",
+    "custom_ai-server_No answer from the instance": "No answer from the instance",
+    "custom_ai-server_No messages yet. The model sees the whole conversation until the chat is cleared.": "No messages yet. The model sees the whole conversation until the chat is cleared.",
+    "custom_ai-server_No model downloaded yet. Download one in the tab \"Models\".": "No model downloaded yet. Download one in the tab \"Models\".",
+    "custom_ai-server_Prompt: %s tokens": "Prompt: %s tokens",
+    "custom_ai-server_Reload the list of models": "Reload the list of models",
+    "custom_ai-server_Send (Enter)": "Send (Enter)",
+    "custom_ai-server_Start the instance to chat.": "Start the instance to chat.",
+    "custom_ai-server_System prompt": "System prompt",
+    "custom_ai-server_Think before answering": "Think before answering",
+    "custom_ai-server_Thinking": "Thinking",
+    "custom_ai-server_Thinking models think first. That takes many times longer.": "Thinking models think first. That takes many times longer.",
+    "custom_ai-server_Type a message…": "Type a message…",
+    "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "Waiting for the answer. The first one takes longer, as the model is loaded.",
+    "custom_ai-server_e.g. Answer briefly.": "e.g. Answer briefly.",
+    "custom_ai-server_loaded": "loaded"
+}
