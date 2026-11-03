@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __typeError = (msg) => {
   throw TypeError(msg);
@@ -18,6 +20,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
@@ -29,7 +39,7 @@ __export(device_management_exports, {
   ModelManagement: () => ModelManagement
 });
 module.exports = __toCommonJS(device_management_exports);
-var import_adapter_core = require("@iobroker/adapter-core");
+var I18n = __toESM(require("@iobroker/adapter-core/i18n"));
 var import_dm_utils = require("@iobroker/dm-utils");
 var import_models = require("./models");
 var import_ollama_client = require("./ollama-client");
@@ -42,7 +52,7 @@ function errorText(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function tr(key, ...args) {
-  const texts = import_adapter_core.I18n.getTranslatedObject(key, "%s");
+  const texts = I18n.getTranslatedObject(key, "%s");
   return Object.fromEntries(
     Object.entries(texts).map(([lang, text]) => [
       lang,

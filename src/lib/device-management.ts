@@ -2,7 +2,9 @@
  * The models in the device manager of the admin: one card per model with its size and last use, buttons to load,
  * unload and delete it, and a download with progress. The work itself is done by the adapter, see {@link ModelBackend}.
  */
-import { type AdapterInstance, I18n } from '@iobroker/adapter-core';
+import type { AdapterInstance } from '@iobroker/adapter-core';
+// Not from the index of adapter-core: it looks for js-controller when loaded and ends the process without it
+import * as I18n from '@iobroker/adapter-core/i18n';
 import {
     type ActionContext,
     type ConfigItemAny,

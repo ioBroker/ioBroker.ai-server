@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { type AdapterInstance, I18n } from '@iobroker/adapter-core';
+import type { AdapterInstance } from '@iobroker/adapter-core';
+import * as I18n from '@iobroker/adapter-core/i18n';
 import { expect } from 'chai';
 import { type ModelBackend, ModelManagement } from './device-management';
 import type { ModelInfo } from './models';
