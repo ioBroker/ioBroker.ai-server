@@ -31,6 +31,9 @@ module.exports = __toCommonJS(pending_results_exports);
 var import_node_crypto = require("node:crypto");
 var _jobs, _options;
 class PendingResults {
+  /**
+   * @param options how long results are kept, and the timers to use
+   */
   constructor(options) {
     __privateAdd(this, _jobs, /* @__PURE__ */ new Map());
     __privateAdd(this, _options);

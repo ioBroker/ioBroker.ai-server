@@ -37,9 +37,11 @@ var __privateWrapper = (obj, member, setter, getter) => ({
     return __privateGet(obj, member, getter);
   }
 });
+var import_node_os = require("node:os");
 var import_node_path = require("node:path");
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_device_management = require("./lib/device-management");
+var import_endpoint = require("./lib/endpoint");
 var import_keep_loaded = require("./lib/keep-loaded");
 var import_models = require("./lib/models");
 var import_objects = require("./lib/objects");
@@ -48,7 +50,7 @@ var import_pending_results = require("./lib/pending-results");
 var import_queue = require("./lib/queue");
 var import_requests = require("./lib/requests");
 var import_usage = require("./lib/usage");
-var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _queue, _pendingChats, _status, _version, _stateChats, _lastUsed, _lastCleanup, _keepLoadedPaused, _keepLoadedRetryAt, _AiServer_instances, handleCommand_fn, requestTimeoutMs_fn, modelBackend_fn, getBaseUrl_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, findModelId_fn, markUsed_fn, noteUse_fn, deleteModel_fn, deleteUnusedModels_fn, setLoaded_fn, keptModel_fn, keepDefaultLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, requestDefaults_fn, chat_fn, chatAnswer_fn, generate_fn, runRequest_fn, chatFromStates_fn, onQueueChange_fn, loadedModels_fn, setStatus_fn, setError_fn, reportError_fn;
+var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _queue, _pendingChats, _status, _version, _stateChats, _lastUsed, _lastCleanup, _keepLoadedPaused, _keepLoadedRetryAt, _AiServer_instances, handleCommand_fn, requestTimeoutMs_fn, modelBackend_fn, getBaseUrl_fn, endpointInfo_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, findModelId_fn, markUsed_fn, noteUse_fn, deleteModel_fn, deleteUnusedModels_fn, setLoaded_fn, keptModel_fn, keepDefaultLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, requestDefaults_fn, chat_fn, chatAnswer_fn, generate_fn, runRequest_fn, chatFromStates_fn, onQueueChange_fn, loadedModels_fn, setStatus_fn, setError_fn, reportError_fn;
 const RETRY_MIN_MS = 2e3;
 const RETRY_MAX_MS = 3e4;
 const WAIT_INFO_AFTER_MS = 6e4;
@@ -246,6 +248,8 @@ class AiServer extends utils.Adapter {
     let answer;
     if (obj.command === "getModelOptions") {
       answer = (0, import_models.modelOptions)(await __privateMethod(this, _AiServer_instances, refreshModels_fn).call(this).catch(() => []));
+    } else if (obj.command === "getEndpointInfo") {
+      answer = __privateMethod(this, _AiServer_instances, endpointInfo_fn).call(this, obj.message);
     } else {
       try {
         answer = { result: await __privateMethod(this, _AiServer_instances, handleCommand_fn).call(this, obj.command, obj.message) };
@@ -384,6 +388,35 @@ getBaseUrl_fn = function() {
   }
   const host = this.config.bind && this.config.bind !== "0.0.0.0" ? this.config.bind : "127.0.0.1";
   return `http://${host}:${Number(this.config.port) || 11434}`;
+};
+/**
+ * The addresses of Ollama for the instance settings, as HTML
+ *
+ * @param message backend, bind address, port and URL of the external server as in the form, maybe not saved yet
+ */
+endpointInfo_fn = function(message) {
+  const settings = message && typeof message === "object" ? message : this.config;
+  const endpoints = (0, import_endpoint.getEndpoints)(settings, (0, import_endpoint.hostAddresses)((0, import_node_os.networkInterfaces)()));
+  const t = (key, ...args) => (0, import_endpoint.escapeHtml)(utils.I18n.translate(key, ...args));
+  if (!endpoints) {
+    return { text: t("endpoint_invalid"), icon: "no-connection" };
+  }
+  const link = (url) => endpoints.localOnly ? `<code>${(0, import_endpoint.escapeHtml)(url)}</code>` : (
+    // the default blue of a link can hardly be read on the dark theme
+    `<a href="${(0, import_endpoint.escapeHtml)(url)}" target="_blank" rel="noopener noreferrer" style="color: inherit">${(0, import_endpoint.escapeHtml)(url)}</a>`
+  );
+  const lines = [
+    `<b>${t("Ollama API")}:</b> ${endpoints.urls.map(link).join(", ")}`,
+    `<b>${t("OpenAI-compatible API")}:</b> ${endpoints.urls.map((url) => `<code>${(0, import_endpoint.escapeHtml)(url)}/v1</code>`).join(", ")}`,
+    t("endpoint_noKey")
+  ];
+  if (endpoints.localOnly) {
+    lines.push(t("endpoint_localOnly", this.host || ""));
+    if (settings.backend !== "external") {
+      lines.push(t("endpoint_bindHint"));
+    }
+  }
+  return { text: lines.join("<br>"), icon: "connection" };
 };
 checkDocker_fn = async function() {
   var _a;

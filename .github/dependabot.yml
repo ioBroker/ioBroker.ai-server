@@ -3,7 +3,10 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: "/"
+    # the chat tab of the instance settings is built from src-admin
+    directories:
+      - "/"
+      - "/src-admin"
     schedule:
       interval: cron
       cronjob: "17 3 6 * *"

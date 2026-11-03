@@ -175,6 +175,23 @@ tests.integration(path.join(__dirname, '..'), {
                 ]);
             });
 
+            it('shows the address of the model in the instance settings', async () => {
+                // the form sends its values, maybe not saved yet
+                const local = await sendTo('getEndpointInfo', { backend: 'external', externalUrl: mock.url });
+                expect(local.icon).to.equal('connection');
+                // 127.0.0.1 as a link would lead to the computer of the browser
+                expect(local.text).to.include(`<code>${mock.url}</code>`).and.include(`<code>${mock.url}/v1</code>`);
+                expect(local.text).to.include('Only adapters on the host');
+                const remote = await sendTo('getEndpointInfo', {
+                    backend: 'external',
+                    externalUrl: 'http://192.168.1.50:11434',
+                });
+                expect(remote.text).to.include('<a href="http://192.168.1.50:11434"');
+                expect(remote.text).to.not.include('Only adapters on the host');
+                const invalid = await sendTo('getEndpointInfo', { backend: 'external', externalUrl: '' });
+                expect(invalid.icon).to.equal('no-connection');
+            });
+
             it('chats with the default model and writes the metrics', async function () {
                 this.timeout(10_000);
                 const { result } = await sendTo('chat', {

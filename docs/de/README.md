@@ -93,6 +93,9 @@ schneller, ihre Antworten sind aber deutlich unzuverlässiger.
 
 Reiter **Allgemein**:
 
+Oben zeigt der Reiter die Adressen der Ollama-API und der OpenAI-kompatiblen API für die aktuellen Einstellungen, solange
+die Instanz läuft. Bei der Bind-Adresse `127.0.0.1` steht dort, dass nur Adapter auf demselben Host sie erreichen.
+
 | Einstellung                      | Bedeutung                                                                              |
 |----------------------------------|----------------------------------------------------------------------------------------|
 | Backend                          | "Docker-Container (von ioBroker verwaltet)" oder "Externer Ollama-Server"              |
@@ -378,7 +381,8 @@ den Grund.
 
 ## Nutzung durch andere Adapter
 
-Die Adresse von Ollama liefert `sendTo('ai-server.0', 'getEndpoint', {})`:
+Die Adresse von Ollama steht oben im Reiter "Allgemein" der Instanzeinstellungen und wird von
+`sendTo('ai-server.0', 'getEndpoint', {})` geliefert:
 
 - Ollama-API: `http://127.0.0.1:11434`
 - OpenAI-kompatible API: `http://127.0.0.1:11434/v1` (mit `/v1/chat/completions` und `/v1/models`)

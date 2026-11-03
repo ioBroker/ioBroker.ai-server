@@ -35,6 +35,30 @@
                     "lg": 4,
                     "xl": 4
                 },
+                "_endpoint": {
+                    "type": "textSendTo",
+                    "container": "html",
+                    "command": "getEndpointInfo",
+                    "jsonData": "{\"backend\": \"${data.backend}\", \"bind\": \"${data.bind}\", \"port\": \"${data.port}\", \"externalUrl\": \"${data.externalUrl}\"}",
+                    "alsoDependsOn": ["backend", "bind", "port", "externalUrl"],
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 12,
+                    "lg": 12,
+                    "xl": 12
+                },
+                "_endpointOffline": {
+                    "type": "staticText",
+                    "text": "endpoint_offline",
+                    "hidden": "_alive",
+                    "newLine": true,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 12,
+                    "lg": 12,
+                    "xl": 12
+                },
                 "defaultModel": {
                     "type": "autocompleteSendTo",
                     "command": "getModelOptions",

@@ -2,9 +2,11 @@
  * Created with @iobroker/create-adapter v3.1.5
  */
 
+import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import * as utils from '@iobroker/adapter-core';
 import { type ModelBackend, ModelManagement } from './lib/device-management';
+import { type EndpointSettings, escapeHtml, getEndpoints, hostAddresses } from './lib/endpoint';
 import { KEEP_FOREVER, keepAliveFor, keepLoadedAction } from './lib/keep-loaded';
 import { type ModelInfo, modelOptions, sameModel, toModelInfos } from './lib/models';
 import { MODEL_STATES, parseModelCommand, toModelId } from './lib/objects';
@@ -267,6 +269,9 @@ class AiServer extends utils.Adapter {
         if (obj.command === 'getModelOptions') {
             // the choice of the default model in the instance settings expects a plain list
             answer = modelOptions(await this.#refreshModels().catch(() => []));
+        } else if (obj.command === 'getEndpointInfo') {
+            // the control textSendTo in the instance settings expects { text } as it is
+            answer = this.#endpointInfo(obj.message);
         } else {
             try {
                 answer = { result: await this.#handleCommand(obj.command, obj.message) };
@@ -406,6 +411,38 @@ class AiServer extends utils.Adapter {
         // Docker publishes the port on the bind address only. 0.0.0.0 includes the loopback address.
         const host = this.config.bind && this.config.bind !== '0.0.0.0' ? this.config.bind : '127.0.0.1';
         return `http://${host}:${Number(this.config.port) || 11434}`;
+    }
+
+    /**
+     * The addresses of Ollama for the instance settings, as HTML
+     *
+     * @param message backend, bind address, port and URL of the external server as in the form, maybe not saved yet
+     */
+    #endpointInfo(message: unknown): { text: string; icon: string } {
+        const settings: EndpointSettings = message && typeof message === 'object' ? message : this.config;
+        const endpoints = getEndpoints(settings, hostAddresses(networkInterfaces()));
+        const t = (key: string, ...args: string[]): string => escapeHtml(utils.I18n.translate(key, ...args));
+        if (!endpoints) {
+            return { text: t('endpoint_invalid'), icon: 'no-connection' };
+        }
+        // 127.0.0.1 in a link would lead to the computer of the browser
+        const link = (url: string): string =>
+            endpoints.localOnly
+                ? `<code>${escapeHtml(url)}</code>`
+                : // the default blue of a link can hardly be read on the dark theme
+                  `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color: inherit">${escapeHtml(url)}</a>`;
+        const lines = [
+            `<b>${t('Ollama API')}:</b> ${endpoints.urls.map(link).join(', ')}`,
+            `<b>${t('OpenAI-compatible API')}:</b> ${endpoints.urls.map(url => `<code>${escapeHtml(url)}/v1</code>`).join(', ')}`,
+            t('endpoint_noKey'),
+        ];
+        if (endpoints.localOnly) {
+            lines.push(t('endpoint_localOnly', this.host || ''));
+            if (settings.backend !== 'external') {
+                lines.push(t('endpoint_bindHint'));
+            }
+        }
+        return { text: lines.join('<br>'), icon: 'connection' };
     }
 
     /** Check that plugin-docker can run the container. Returns the error text, or null if everything is fine */

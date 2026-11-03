@@ -100,6 +100,9 @@ faster, but their answers are much less reliable.
 
 Tab **General**:
 
+At the top, the tab shows the addresses of the Ollama API and of the OpenAI-compatible API for the current settings,
+while the instance runs. With the bind address `127.0.0.1` it says that only adapters on the same host reach them.
+
 | Setting               | Meaning                                                                                     |
 |-----------------------|---------------------------------------------------------------------------------------------|
 | Backend               | "Docker container (managed by ioBroker)" or "External Ollama server"                        |
@@ -376,7 +379,8 @@ which can take several minutes. If Docker cannot be used, `info.status` is `erro
 
 ## Use by other adapters
 
-The address of Ollama is returned by `sendTo('ai-server.0', 'getEndpoint', {})`:
+The address of Ollama is shown at the top of the tab "General" of the instance settings, and returned by
+`sendTo('ai-server.0', 'getEndpoint', {})`:
 
 - Ollama API: `http://127.0.0.1:11434`
 - OpenAI-compatible API: `http://127.0.0.1:11434/v1` (with `/v1/chat/completions` and `/v1/models`)
@@ -492,6 +496,7 @@ with ROCm, or an Ollama installed directly on the host with the backend "Externa
 * (GermanBluefox) tab "Chat" in the instance settings to try the models; `chat` and `generate` return `tokensPerSecond`;
   `chatStart` and `chatResult` for clients that stop waiting after a while, like the browser after 30 seconds
 * (GermanBluefox) option "Keep the default model loaded": the default model is loaded at the start and stays ready
+* (GermanBluefox) the tab "General" shows the addresses of the Ollama API and of the OpenAI-compatible API
 
 ## License
 MIT License
