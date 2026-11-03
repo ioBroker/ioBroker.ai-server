@@ -170,6 +170,7 @@
                 "_dockerCheck": {
                     "type": "checkDocker",
                     "label": "Docker status",
+                    "noCheckbox": true,
                     "disabled": "true",
                     "newLine": true,
                     "xs": 12,
