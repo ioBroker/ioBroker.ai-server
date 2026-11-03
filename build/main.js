@@ -40,13 +40,15 @@ var __privateWrapper = (obj, member, setter, getter) => ({
 var import_node_path = require("node:path");
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_device_management = require("./lib/device-management");
+var import_keep_loaded = require("./lib/keep-loaded");
 var import_models = require("./lib/models");
 var import_objects = require("./lib/objects");
 var import_ollama_client = require("./lib/ollama-client");
+var import_pending_results = require("./lib/pending-results");
 var import_queue = require("./lib/queue");
 var import_requests = require("./lib/requests");
 var import_usage = require("./lib/usage");
-var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _queue, _status, _version, _stateChats, _lastUsed, _lastCleanup, _AiServer_instances, handleCommand_fn, requestTimeoutMs_fn, modelBackend_fn, getBaseUrl_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, findModelId_fn, markUsed_fn, noteUse_fn, deleteModel_fn, deleteUnusedModels_fn, setLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, requestDefaults_fn, chat_fn, generate_fn, runRequest_fn, chatFromStates_fn, onQueueChange_fn, loadedModels_fn, setStatus_fn, setError_fn, reportError_fn;
+var _client, _connected, _unloading, _retryTimer, _monitorTimer, _monitorRunning, _subscribed, _models, _refreshQueue, _pulling, _queue, _pendingChats, _status, _version, _stateChats, _lastUsed, _lastCleanup, _keepLoadedPaused, _keepLoadedRetryAt, _AiServer_instances, handleCommand_fn, requestTimeoutMs_fn, modelBackend_fn, getBaseUrl_fn, checkDocker_fn, waitForOllama_fn, onConnected_fn, monitor_fn, onDisconnected_fn, stopMonitor_fn, requireClient_fn, refreshModels_fn, syncModels_fn, updateLoaded_fn, findModelId_fn, markUsed_fn, noteUse_fn, deleteModel_fn, deleteUnusedModels_fn, setLoaded_fn, keptModel_fn, keepDefaultLoaded_fn, ensureDefaultModel_fn, startPull_fn, pull_fn, requestDefaults_fn, chat_fn, chatAnswer_fn, generate_fn, runRequest_fn, chatFromStates_fn, onQueueChange_fn, loadedModels_fn, setStatus_fn, setError_fn, reportError_fn;
 const RETRY_MIN_MS = 2e3;
 const RETRY_MAX_MS = 3e4;
 const WAIT_INFO_AFTER_MS = 6e4;
@@ -54,6 +56,9 @@ const MONITOR_INTERVAL_MS = 3e4;
 const PROBE_TIMEOUT_MS = 5e3;
 const PULL_PROGRESS_INTERVAL_MS = 1e3;
 const CLEANUP_INTERVAL_MS = 60 * 6e4;
+const MAX_RESULT_WAIT_MS = 25e3;
+const KEEP_RESULT_MS = 10 * 6e4;
+const KEEP_LOADED_RETRY_MS = 10 * 6e4;
 function errorText(error) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -86,6 +91,8 @@ class AiServer extends utils.Adapter {
     __privateAdd(this, _pulling, null);
     /** Limits the requests to the model (chat, generate) to `parallel` at a time */
     __privateAdd(this, _queue, null);
+    /** Answers of `chatStart`, until they are fetched with `chatResult` */
+    __privateAdd(this, _pendingChats, null);
     /** Value of `info.status` */
     __privateAdd(this, _status, "starting");
     /** Version of Ollama, as of the last connection */
@@ -96,6 +103,10 @@ class AiServer extends utils.Adapter {
     __privateAdd(this, _lastUsed, /* @__PURE__ */ new Map());
     /** Time of the last search for unused models */
     __privateAdd(this, _lastCleanup, 0);
+    /** The default model was unloaded on purpose: it is not loaded again until it is loaded or used otherwise */
+    __privateAdd(this, _keepLoadedPaused, false);
+    /** After a failed attempt to keep the default model loaded, the next one waits until this time */
+    __privateAdd(this, _keepLoadedRetryAt, 0);
     this.on("ready", this.onReady.bind(this));
     this.on("stateChange", this.onStateChange.bind(this));
     this.on("message", this.onMessage.bind(this));
@@ -119,6 +130,13 @@ class AiServer extends utils.Adapter {
       parallel: this.config.parallel,
       maxQueue: this.config.maxQueue,
       onChange: (running) => __privateMethod(this, _AiServer_instances, onQueueChange_fn).call(this, running)
+    }));
+    __privateSet(this, _pendingChats, new import_pending_results.PendingResults({
+      keepMs: KEEP_RESULT_MS,
+      timers: {
+        setTimeout: (callback, ms) => this.setTimeout(callback, ms),
+        clearTimeout: (handle) => this.clearTimeout(handle)
+      }
     }));
     const baseUrl = __privateMethod(this, _AiServer_instances, getBaseUrl_fn).call(this);
     if (!baseUrl) {
@@ -154,11 +172,12 @@ class AiServer extends utils.Adapter {
    * @param callback - Callback function
    */
   async onUnload(callback) {
-    var _a, _b;
+    var _a, _b, _c;
     try {
       __privateSet(this, _unloading, true);
       (_a = __privateGet(this, _queue)) == null ? void 0 : _a.clear(new Error("The adapter is stopping"));
       (_b = __privateGet(this, _client)) == null ? void 0 : _b.abortAll();
+      (_c = __privateGet(this, _pendingChats)) == null ? void 0 : _c.clear();
       __privateMethod(this, _AiServer_instances, stopMonitor_fn).call(this);
       this.clearTimeout(__privateGet(this, _retryTimer));
       await this.setState("info.connection", false, true);
@@ -250,11 +269,14 @@ _models = new WeakMap();
 _refreshQueue = new WeakMap();
 _pulling = new WeakMap();
 _queue = new WeakMap();
+_pendingChats = new WeakMap();
 _status = new WeakMap();
 _version = new WeakMap();
 _stateChats = new WeakMap();
 _lastUsed = new WeakMap();
 _lastCleanup = new WeakMap();
+_keepLoadedPaused = new WeakMap();
+_keepLoadedRetryAt = new WeakMap();
 _AiServer_instances = new WeakSet();
 handleCommand_fn = async function(command, message) {
   var _a, _b, _c, _d;
@@ -273,16 +295,22 @@ handleCommand_fn = async function(command, message) {
     case "unloadModel":
       await __privateMethod(this, _AiServer_instances, setLoaded_fn).call(this, getModel(message), false);
       return { unloaded: true };
-    case "chat": {
-      const { response, metrics } = await __privateMethod(this, _AiServer_instances, chat_fn).call(this, message);
-      return {
-        message: response.message,
-        model: response.model,
-        durationMs: metrics.durationMs,
-        promptTokens: metrics.promptTokens,
-        completionTokens: metrics.completionTokens,
-        tokensPerSecond: metrics.tokensPerSecond
-      };
+    case "chat":
+      return __privateMethod(this, _AiServer_instances, chatAnswer_fn).call(this, message);
+    case "chatStart": {
+      if (!__privateGet(this, _pendingChats)) {
+        throw new Error("The adapter is not ready yet");
+      }
+      return { id: __privateGet(this, _pendingChats).start(__privateMethod(this, _AiServer_instances, chatAnswer_fn).call(this, message)) };
+    }
+    case "chatResult": {
+      const { id, wait } = message || {};
+      if (typeof id !== "string" || !__privateGet(this, _pendingChats)) {
+        throw new Error('The message has to contain the "id" returned by chatStart');
+      }
+      const waitMs = typeof wait === "number" && wait >= 0 ? Math.min(wait, MAX_RESULT_WAIT_MS) : 0;
+      const answer = await __privateGet(this, _pendingChats).wait(id, waitMs);
+      return answer.done ? { done: true, ...answer.result } : { done: false };
     }
     case "generate": {
       const { response, metrics } = await __privateMethod(this, _AiServer_instances, generate_fn).call(this, message);
@@ -440,6 +468,9 @@ onConnected_fn = async function(version) {
   if (models) {
     __privateMethod(this, _AiServer_instances, ensureDefaultModel_fn).call(this, models);
   }
+  if (__privateMethod(this, _AiServer_instances, keptModel_fn).call(this)) {
+    void __privateMethod(this, _AiServer_instances, monitor_fn).call(this);
+  }
 };
 monitor_fn = async function() {
   if (__privateGet(this, _monitorRunning) || !__privateGet(this, _client) || !__privateGet(this, _connected)) {
@@ -457,6 +488,7 @@ monitor_fn = async function() {
       return;
     }
     await __privateMethod(this, _AiServer_instances, updateLoaded_fn).call(this, running);
+    await __privateMethod(this, _AiServer_instances, keepDefaultLoaded_fn).call(this, running);
     await __privateMethod(this, _AiServer_instances, deleteUnusedModels_fn).call(this, running);
   } catch (error) {
     this.log.warn(`Cannot update the models: ${errorText(error)}`);
@@ -624,13 +656,53 @@ deleteUnusedModels_fn = async function(running) {
 };
 setLoaded_fn = async function(model, load) {
   const client = __privateMethod(this, _AiServer_instances, requireClient_fn).call(this);
+  const kept = !!__privateMethod(this, _AiServer_instances, keptModel_fn).call(this) && (0, import_models.sameModel)(model, __privateMethod(this, _AiServer_instances, keptModel_fn).call(this));
   if (load) {
-    await client.loadModel(model, this.config.keepAlive);
+    await client.loadModel(model, (0, import_keep_loaded.keepAliveFor)(model, this.config.keepAlive, __privateMethod(this, _AiServer_instances, keptModel_fn).call(this)));
   } else {
     await client.unloadModel(model);
   }
   this.log.info(`Model ${model} ${load ? "loaded" : "unloaded"}`);
+  if (kept) {
+    __privateSet(this, _keepLoadedPaused, !load);
+    if (!load) {
+      this.log.info(`The default model ${model} stays unloaded until it is loaded again or used`);
+    }
+  }
   await __privateMethod(this, _AiServer_instances, updateLoaded_fn).call(this, await client.listRunningModels());
+};
+/** The model to keep loaded: the default model if "Keep the default model loaded" is on, else empty */
+keptModel_fn = function() {
+  return this.config.keepDefaultLoaded ? (this.config.defaultModel || "").trim() : "";
+};
+keepDefaultLoaded_fn = async function(running) {
+  var _a;
+  const model = __privateMethod(this, _AiServer_instances, keptModel_fn).call(this);
+  if (!model || !__privateMethod(this, _AiServer_instances, findModelId_fn).call(this, model)) {
+    return;
+  }
+  if (running.some((item) => (0, import_models.sameModel)(item.name || item.model, model))) {
+    __privateSet(this, _keepLoadedPaused, false);
+  }
+  const action = (0, import_keep_loaded.keepLoadedAction)(model, running);
+  if (action === "none" || __privateGet(this, _keepLoadedPaused) || ((_a = __privateGet(this, _queue)) == null ? void 0 : _a.running) || Date.now() < __privateGet(this, _keepLoadedRetryAt)) {
+    return;
+  }
+  const client = __privateMethod(this, _AiServer_instances, requireClient_fn).call(this);
+  try {
+    if (action === "load") {
+      this.log.info(`Loading the default model ${model}, it stays loaded`);
+    } else {
+      this.log.debug(`The default model ${model} would be unloaded some time, loading it for good`);
+    }
+    await client.loadModel(model, import_keep_loaded.KEEP_FOREVER);
+    if (action === "load") {
+      await __privateMethod(this, _AiServer_instances, updateLoaded_fn).call(this, await client.listRunningModels());
+    }
+  } catch (error) {
+    __privateSet(this, _keepLoadedRetryAt, Date.now() + KEEP_LOADED_RETRY_MS);
+    await __privateMethod(this, _AiServer_instances, reportError_fn).call(this, `Cannot keep the default model ${model} loaded, trying again in ${KEEP_LOADED_RETRY_MS / 6e4} minutes: ${errorText(error)}`);
+  }
 };
 /**
  * Download the default model if Ollama does not have it, e.g. on the first start
@@ -708,7 +780,7 @@ pull_fn = async function(client, model, onProgress) {
 };
 /** Default model and keep-alive for the requests */
 requestDefaults_fn = function() {
-  return { model: this.config.defaultModel, keepAlive: this.config.keepAlive };
+  return { model: this.config.defaultModel, keepAlive: this.config.keepAlive, keptModel: __privateMethod(this, _AiServer_instances, keptModel_fn).call(this) };
 };
 chat_fn = async function(message) {
   var _a, _b;
@@ -721,6 +793,17 @@ chat_fn = async function(message) {
     `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${(0, import_requests.shorten)((_b = (_a = result.response.message) == null ? void 0 : _a.content) != null ? _b : "")}`
   );
   return result;
+};
+chatAnswer_fn = async function(message) {
+  const { response, metrics } = await __privateMethod(this, _AiServer_instances, chat_fn).call(this, message);
+  return {
+    message: response.message,
+    model: response.model,
+    durationMs: metrics.durationMs,
+    promptTokens: metrics.promptTokens,
+    completionTokens: metrics.completionTokens,
+    tokensPerSecond: metrics.tokensPerSecond
+  };
 };
 generate_fn = async function(message) {
   var _a, _b;

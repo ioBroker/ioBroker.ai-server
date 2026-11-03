@@ -15,6 +15,7 @@
     "custom_ai-server_Thinking": "思考过程",
     "custom_ai-server_Thinking models think first. That takes many times longer.": "思考型模型会先思考，耗时会长很多倍。",
     "custom_ai-server_Type a message…": "输入消息…",
+    "custom_ai-server_Waiting for the answer.": "正在等待回答。",
     "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "正在等待回答。第一次回答需要更长时间，因为要先加载模型。",
     "custom_ai-server_e.g. Answer briefly.": "例如：请简短回答。",
     "custom_ai-server_loaded": "已加载"

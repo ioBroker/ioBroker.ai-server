@@ -209,6 +209,18 @@ tests.integration(path.join(__dirname, '..'), {
                 expect(harness.hasLog('Secret question', 'info')).to.be.false;
             });
 
+            it('starts a chat and returns its result with a further message', async function () {
+                this.timeout(10_000);
+                const started = await sendTo('chatStart', { messages: [{ role: 'user', content: 'Hi' }] });
+                expect(started.result.id).to.be.a('string');
+                const { result } = await sendTo('chatResult', { id: started.result.id, wait: 5000 });
+                expect(result).to.include({ done: true, model: 'qwen3:0.6b', completionTokens: 5 });
+                expect(result.message).to.deep.equal({ role: 'assistant', content: 'Hello from the mock' });
+                // a result is returned once
+                expect((await sendTo('chatResult', { id: started.result.id })).error).to.match(/Unknown request/);
+                expect((await sendTo('chatResult', {})).error).to.match(/"id"/);
+            });
+
             it('passes format to generate unchanged', async () => {
                 const { result } = await sendTo('generate', { prompt: 'Light on?', format: 'json' });
                 expect(result).to.include({ response: '{"on":true}', model: 'qwen3:0.6b' });
@@ -330,6 +342,54 @@ tests.integration(path.join(__dirname, '..'), {
                 expect(answer).to.deep.include({ type: 'result', result: { refresh: 'all' } });
                 expect(mock.models.has('tiny:1b')).to.be.false;
                 await waitFor(async () => !(await getObject('models.tiny_1b')), 5000, 'the channel to be deleted');
+            });
+        });
+
+        suite('Keeping the default model loaded', getHarness => {
+            let harness;
+            let mock;
+            const getState = id => harness.states.getStateAsync(`${INSTANCE}.${id}`);
+            const sendTo = (command, message) =>
+                new Promise(resolve => harness.sendTo(INSTANCE, command, message, resolve));
+            const lastRequest = url => [...mock.requests].reverse().find(request => request.url === url);
+
+            before(async () => {
+                harness = getHarness();
+                mock = await startMockOllama(['qwen3:0.6b', 'tiny:1b']);
+                await harness.changeAdapterConfig('ai-server', {
+                    native: {
+                        backend: 'external',
+                        externalUrl: mock.url,
+                        dockerCpu: false,
+                        dockerRocm: false,
+                        defaultModel: 'qwen3:0.6b',
+                        keepDefaultLoaded: true,
+                    },
+                });
+            });
+
+            after(async () => {
+                await mock?.close();
+            });
+
+            it('loads the default model for good at the start', async function () {
+                this.timeout(60_000);
+                await harness.startAdapterAndWait(true);
+                await waitFor(
+                    async () => (await getState('models.qwen3_0_6b.loaded'))?.val === true,
+                    10_000,
+                    'the default model to be loaded',
+                );
+                expect(lastRequest('/api/generate').body).to.deep.equal({ model: 'qwen3:0.6b', keep_alive: -1 });
+                expect(harness.hasLog(/Loading the default model qwen3:0.6b/, 'info')).to.be.true;
+            });
+
+            it('keeps the default model loaded for good with every request, but not the other models', async () => {
+                const messages = [{ role: 'user', content: 'Hi' }];
+                await sendTo('chat', { messages });
+                expect(lastRequest('/api/chat').body).to.include({ model: 'qwen3:0.6b', keep_alive: -1 });
+                await sendTo('chat', { model: 'tiny:1b', messages });
+                expect(lastRequest('/api/chat').body).to.include({ model: 'tiny:1b', keep_alive: '5m' });
             });
         });
     },

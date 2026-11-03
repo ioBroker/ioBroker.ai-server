@@ -63,10 +63,19 @@ interface ChatEntry {
     stats?: AnswerStats;
 }
 
-interface ChatAnswer {
-    result?: AnswerStats & { message?: { content?: string; thinking?: string } };
+/** Answer of `chatResult`: `done` is false while the model is still working */
+interface ChatResultAnswer {
+    result?: { done?: boolean } & AnswerStats & { message?: { content?: string; thinking?: string } };
     error?: string;
 }
+
+/**
+ * The browser drops an answer of `sendTo` after 30 seconds, but a model on a CPU often needs longer.
+ * So the chat is started with `chatStart`, and its result is fetched with `chatResult`, each waiting this long.
+ */
+const RESULT_WAIT_MS = 20_000;
+/** Give up after this many fetches in a row that got no answer at all */
+const MAX_MISSES = 3;
 
 /** The conversation of an instance. It lives outside the component, so it survives switching the tabs. */
 interface Session {
@@ -211,6 +220,18 @@ export default class ChatComponent extends ConfigGeneric<ConfigGenericProps, Cha
     }
 
     /**
+     * Send a command to the instance
+     *
+     * @param command the command
+     * @param message its message
+     * @returns the answer, or undefined if none came, e.g. the browser gave up waiting ("timeout")
+     */
+    private async command<T>(command: string, message: Record<string, unknown>): Promise<T | undefined> {
+        const answer: unknown = await this.props.oContext.socket.sendTo(this.instanceId, command, message);
+        return answer && typeof answer === 'object' ? (answer as T) : undefined;
+    }
+
+    /**
      * Ask the model. The answer is written into the session, also if the tab was left meanwhile.
      *
      * @param session the conversation
@@ -218,24 +239,32 @@ export default class ChatComponent extends ConfigGeneric<ConfigGenericProps, Cha
      */
     private async ask(session: Session, request: Record<string, unknown>): Promise<void> {
         try {
-            const answer = (await this.props.oContext.socket.sendTo(this.instanceId, 'chat', request)) as
-                | ChatAnswer
-                | undefined;
-            if (answer?.result) {
-                const { message, ...stats } = answer.result;
-                session.entries.push({
-                    role: 'assistant',
-                    content: message?.content || '',
-                    thinking: message?.thinking || undefined,
-                    ts: Date.now(),
-                    stats,
-                });
-            } else {
-                session.entries.push({
-                    role: 'error',
-                    content: answer?.error || t('No answer from the instance'),
-                    ts: Date.now(),
-                });
+            const started = await this.command<{ result?: { id?: string }; error?: string }>('chatStart', request);
+            const id = started?.result?.id;
+            if (!id) {
+                throw new Error(started?.error || t('No answer from the instance'));
+            }
+            let misses = 0;
+            for (;;) {
+                const answer = await this.command<ChatResultAnswer>('chatResult', { id, wait: RESULT_WAIT_MS });
+                if (answer?.error) {
+                    throw new Error(answer.error);
+                }
+                if (answer?.result?.done) {
+                    const { message, done: _done, ...stats } = answer.result;
+                    session.entries.push({
+                        role: 'assistant',
+                        content: message?.content || '',
+                        thinking: message?.thinking || undefined,
+                        ts: Date.now(),
+                        stats,
+                    });
+                    return;
+                }
+                misses = answer ? 0 : misses + 1;
+                if (misses >= MAX_MISSES) {
+                    throw new Error(t('No answer from the instance'));
+                }
             }
         } catch (error) {
             session.entries.push({ role: 'error', content: (error as Error).message, ts: Date.now() });
@@ -514,7 +543,9 @@ export default class ChatComponent extends ConfigGeneric<ConfigGenericProps, Cha
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, opacity: 0.7 }}>
                             <CircularProgress size={16} />
                             <Typography variant="body2">
-                                {t('Waiting for the answer. The first one takes longer, as the model is loaded.')}
+                                {models?.find(item => item.name === this.state.model)?.loaded
+                                    ? t('Waiting for the answer.')
+                                    : t('Waiting for the answer. The first one takes longer, as the model is loaded.')}
                             </Typography>
                         </Box>
                     ) : null}

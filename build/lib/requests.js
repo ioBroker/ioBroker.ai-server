@@ -24,6 +24,7 @@ __export(requests_exports, {
   toMetrics: () => toMetrics
 });
 module.exports = __toCommonJS(requests_exports);
+var import_keep_loaded = require("./keep-loaded");
 var import_ollama_client = require("./ollama-client");
 const ROLES = ["system", "user", "assistant", "tool"];
 function asObject(message) {
@@ -31,6 +32,9 @@ function asObject(message) {
     throw new Error("The message has to be an object");
   }
   return message;
+}
+function requestKeepAlive(model, defaults) {
+  return (0, import_ollama_client.toKeepAlive)((0, import_keep_loaded.keepAliveFor)(model, defaults.keepAlive, defaults.keptModel || ""));
 }
 function pickModel(model, defaults) {
   const name = typeof model === "string" && model.trim() ? model.trim() : (defaults.model || "").trim();
@@ -80,10 +84,11 @@ function toChatRequest(message, defaults) {
   });
   const system = optionalString(input.system, "system");
   const messages = input.messages;
+  const model = pickModel(input.model, defaults);
   const request = {
-    model: pickModel(input.model, defaults),
+    model,
     messages: system ? [{ role: "system", content: system }, ...messages] : messages,
-    keep_alive: (0, import_ollama_client.toKeepAlive)(defaults.keepAlive),
+    keep_alive: requestKeepAlive(model, defaults),
     ...passThrough(input)
   };
   if (input.tools !== void 0) {
@@ -97,10 +102,11 @@ function toGenerateRequest(message, defaults) {
   if (!prompt) {
     throw new Error('"prompt" has to be a non-empty text');
   }
+  const model = pickModel(input.model, defaults);
   const request = {
-    model: pickModel(input.model, defaults),
+    model,
     prompt,
-    keep_alive: (0, import_ollama_client.toKeepAlive)(defaults.keepAlive),
+    keep_alive: requestKeepAlive(model, defaults),
     ...passThrough(input)
   };
   const system = optionalString(input.system, "system");

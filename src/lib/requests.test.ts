@@ -63,6 +63,13 @@ describe('requests', () => {
             );
         });
 
+        it('keeps the kept model loaded for good, but not the other models', () => {
+            const kept = { ...defaults, keptModel: 'qwen3:4b' };
+            const messages = [{ role: 'user', content: 'Hi' }];
+            expect(toChatRequest({ messages }, kept).keep_alive).to.equal(-1);
+            expect(toChatRequest({ model: 'llama3.2:3b', messages }, kept).keep_alive).to.equal('5m');
+        });
+
         it('needs a model', () => {
             expect(() =>
                 toChatRequest({ messages: [{ role: 'user', content: 'x' }] }, { model: '', keepAlive: '5m' }),
@@ -79,6 +86,10 @@ describe('requests', () => {
                 format: 'json',
                 keep_alive: '5m',
             });
+        });
+
+        it('keeps the kept model loaded for good', () => {
+            expect(toGenerateRequest({ prompt: 'Hi' }, { ...defaults, keptModel: 'qwen3:4b' }).keep_alive).to.equal(-1);
         });
 
         it('needs a prompt', () => {

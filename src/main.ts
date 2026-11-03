@@ -5,6 +5,7 @@
 import { join } from 'node:path';
 import * as utils from '@iobroker/adapter-core';
 import { type ModelBackend, ModelManagement } from './lib/device-management';
+import { KEEP_FOREVER, keepAliveFor, keepLoadedAction } from './lib/keep-loaded';
 import { type ModelInfo, modelOptions, sameModel, toModelInfos } from './lib/models';
 import { MODEL_STATES, parseModelCommand, toModelId } from './lib/objects';
 import {
@@ -16,6 +17,7 @@ import {
     type OllamaRunningModel,
     type OllamaStats,
 } from './lib/ollama-client';
+import { PendingResults } from './lib/pending-results';
 import { RequestQueue } from './lib/queue';
 import {
     type RequestDefaults,
@@ -40,6 +42,12 @@ const PROBE_TIMEOUT_MS = 5_000;
 const PULL_PROGRESS_INTERVAL_MS = 1_000;
 /** Unused models are looked for this often, the first time after this time since the connection */
 const CLEANUP_INTERVAL_MS = 60 * 60_000;
+/** `chatResult` answers within this time, as the browser drops answers after 30 s */
+const MAX_RESULT_WAIT_MS = 25_000;
+/** Answers of `chatStart` that nobody fetched are forgotten after this time */
+const KEEP_RESULT_MS = 10 * 60_000;
+/** If the default model cannot be kept loaded, e.g. as the memory is too small, the next attempt waits this long */
+const KEEP_LOADED_RETRY_MS = 10 * 60_000;
 
 type Status = 'starting' | 'ready' | 'busy' | 'error' | 'stopped';
 
@@ -83,6 +91,8 @@ class AiServer extends utils.Adapter {
     #pulling: string | null = null;
     /** Limits the requests to the model (chat, generate) to `parallel` at a time */
     #queue: RequestQueue | null = null;
+    /** Answers of `chatStart`, until they are fetched with `chatResult` */
+    #pendingChats: PendingResults<Record<string, unknown>> | null = null;
     /** Value of `info.status` */
     #status: Status = 'starting';
     /** Version of Ollama, as of the last connection */
@@ -93,6 +103,10 @@ class AiServer extends utils.Adapter {
     #lastUsed = new Map<string, number>();
     /** Time of the last search for unused models */
     #lastCleanup = 0;
+    /** The default model was unloaded on purpose: it is not loaded again until it is loaded or used otherwise */
+    #keepLoadedPaused = false;
+    /** After a failed attempt to keep the default model loaded, the next one waits until this time */
+    #keepLoadedRetryAt = 0;
 
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
         super({
@@ -126,6 +140,13 @@ class AiServer extends utils.Adapter {
             parallel: this.config.parallel,
             maxQueue: this.config.maxQueue,
             onChange: running => this.#onQueueChange(running),
+        });
+        this.#pendingChats = new PendingResults({
+            keepMs: KEEP_RESULT_MS,
+            timers: {
+                setTimeout: (callback, ms) => this.setTimeout(callback, ms),
+                clearTimeout: handle => this.clearTimeout(handle as ioBroker.Timeout | undefined),
+            },
         });
 
         const baseUrl = this.#getBaseUrl();
@@ -171,6 +192,7 @@ class AiServer extends utils.Adapter {
             this.#unloading = true;
             this.#queue?.clear(new Error('The adapter is stopping'));
             this.#client?.abortAll();
+            this.#pendingChats?.clear();
             this.#stopMonitor();
             this.clearTimeout(this.#retryTimer);
             await this.setState('info.connection', false, true);
@@ -284,16 +306,25 @@ class AiServer extends utils.Adapter {
                 await this.#setLoaded(getModel(message), false);
                 return { unloaded: true };
 
-            case 'chat': {
-                const { response, metrics } = await this.#chat(message);
-                return {
-                    message: response.message,
-                    model: response.model,
-                    durationMs: metrics.durationMs,
-                    promptTokens: metrics.promptTokens,
-                    completionTokens: metrics.completionTokens,
-                    tokensPerSecond: metrics.tokensPerSecond,
-                };
+            case 'chat':
+                return this.#chatAnswer(message);
+
+            case 'chatStart': {
+                // for clients that drop an answer after a while, like the browser after 30 s: they fetch it in parts
+                if (!this.#pendingChats) {
+                    throw new Error('The adapter is not ready yet');
+                }
+                return { id: this.#pendingChats.start(this.#chatAnswer(message)) };
+            }
+
+            case 'chatResult': {
+                const { id, wait } = (message || {}) as { id?: unknown; wait?: unknown };
+                if (typeof id !== 'string' || !this.#pendingChats) {
+                    throw new Error('The message has to contain the "id" returned by chatStart');
+                }
+                const waitMs = typeof wait === 'number' && wait >= 0 ? Math.min(wait, MAX_RESULT_WAIT_MS) : 0;
+                const answer = await this.#pendingChats.wait(id, waitMs);
+                return answer.done ? { done: true, ...answer.result } : { done: false };
             }
 
             case 'generate': {
@@ -465,6 +496,10 @@ class AiServer extends utils.Adapter {
         if (models) {
             this.#ensureDefaultModel(models);
         }
+        if (this.#keptModel()) {
+            // load the default model at once, not only with the next check
+            void this.#monitor();
+        }
     }
 
     /**
@@ -487,6 +522,7 @@ class AiServer extends utils.Adapter {
                 return;
             }
             await this.#updateLoaded(running);
+            await this.#keepDefaultLoaded(running);
             await this.#deleteUnusedModels(running);
         } catch (error) {
             this.log.warn(`Cannot update the models: ${errorText(error)}`);
@@ -697,13 +733,68 @@ class AiServer extends utils.Adapter {
      */
     async #setLoaded(model: string, load: boolean): Promise<void> {
         const client = this.#requireClient();
+        const kept = !!this.#keptModel() && sameModel(model, this.#keptModel());
         if (load) {
-            await client.loadModel(model, this.config.keepAlive);
+            await client.loadModel(model, keepAliveFor(model, this.config.keepAlive, this.#keptModel()));
         } else {
             await client.unloadModel(model);
         }
         this.log.info(`Model ${model} ${load ? 'loaded' : 'unloaded'}`);
+        if (kept) {
+            this.#keepLoadedPaused = !load;
+            if (!load) {
+                this.log.info(`The default model ${model} stays unloaded until it is loaded again or used`);
+            }
+        }
         await this.#updateLoaded(await client.listRunningModels());
+    }
+
+    /** The model to keep loaded: the default model if "Keep the default model loaded" is on, else empty */
+    #keptModel(): string {
+        return this.config.keepDefaultLoaded ? (this.config.defaultModel || '').trim() : '';
+    }
+
+    /**
+     * Keep the default model loaded, if so configured. Load it again when Ollama unloaded it, e.g. after another model
+     * was used, and load it for good again when a request of another client set a time to unload it.
+     *
+     * @param running the answer of /api/ps
+     */
+    async #keepDefaultLoaded(running: OllamaRunningModel[]): Promise<void> {
+        const model = this.#keptModel();
+        if (!model || !this.#findModelId(model)) {
+            // not downloaded (yet)
+            return;
+        }
+        if (running.some(item => sameModel(item.name || item.model, model))) {
+            this.#keepLoadedPaused = false;
+        }
+        const action = keepLoadedAction(model, running);
+        if (
+            action === 'none' ||
+            this.#keepLoadedPaused ||
+            this.#queue?.running ||
+            Date.now() < this.#keepLoadedRetryAt
+        ) {
+            return;
+        }
+        const client = this.#requireClient();
+        try {
+            if (action === 'load') {
+                this.log.info(`Loading the default model ${model}, it stays loaded`);
+            } else {
+                this.log.debug(`The default model ${model} would be unloaded some time, loading it for good`);
+            }
+            await client.loadModel(model, KEEP_FOREVER);
+            if (action === 'load') {
+                await this.#updateLoaded(await client.listRunningModels());
+            }
+        } catch (error) {
+            this.#keepLoadedRetryAt = Date.now() + KEEP_LOADED_RETRY_MS;
+            await this.#reportError(
+                `Cannot keep the default model ${model} loaded, trying again in ${KEEP_LOADED_RETRY_MS / 60_000} minutes: ${errorText(error)}`,
+            );
+        }
     }
 
     /**
@@ -788,7 +879,7 @@ class AiServer extends utils.Adapter {
 
     /** Default model and keep-alive for the requests */
     #requestDefaults(): RequestDefaults {
-        return { model: this.config.defaultModel, keepAlive: this.config.keepAlive };
+        return { model: this.config.defaultModel, keepAlive: this.config.keepAlive, keptModel: this.#keptModel() };
     }
 
     /**
@@ -806,6 +897,23 @@ class AiServer extends utils.Adapter {
             `Answer of ${result.response.model} after ${result.metrics.durationMs} ms: ${shorten(result.response.message?.content ?? '')}`,
         );
         return result;
+    }
+
+    /**
+     * Send a chat to the model and build the answer of `sendTo('chat')`
+     *
+     * @param message the message of `sendTo('chat')`
+     */
+    async #chatAnswer(message: unknown): Promise<Record<string, unknown>> {
+        const { response, metrics } = await this.#chat(message);
+        return {
+            message: response.message,
+            model: response.model,
+            durationMs: metrics.durationMs,
+            promptTokens: metrics.promptTokens,
+            completionTokens: metrics.completionTokens,
+            tokensPerSecond: metrics.tokensPerSecond,
+        };
     }
 
     /**

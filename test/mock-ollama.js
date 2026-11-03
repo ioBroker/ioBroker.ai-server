@@ -42,7 +42,18 @@ function sendJson(res, status, body) {
 async function startMockOllama(installed) {
     const models = new Map(installed.map(name => [name, toModel(name)]));
     const running = new Set();
+    /** Loaded models that stay loaded for good (`keep_alive: -1`) */
+    const forever = new Set();
     const requests = [];
+
+    function setRunning(name, keepAlive) {
+        running.add(name);
+        if (keepAlive === -1) {
+            forever.add(name);
+        } else {
+            forever.delete(name);
+        }
+    }
 
     function handle(method, url, body, res) {
         if (method === 'GET' && url === '/api/version') {
@@ -53,7 +64,11 @@ async function startMockOllama(installed) {
         }
         if (method === 'GET' && url === '/api/ps') {
             return sendJson(res, 200, {
-                models: [...running].map(name => ({ ...toModel(name), expires_at: '2026-10-01T10:05:00Z' })),
+                models: [...running].map(name => ({
+                    ...toModel(name),
+                    // as Ollama reports a model loaded for good
+                    expires_at: forever.has(name) ? '2319-02-13T16:22:37Z' : new Date(Date.now() + 300_000).toISOString(),
+                })),
             });
         }
         if (method === 'POST' && url === '/api/pull') {
@@ -92,11 +107,11 @@ async function startMockOllama(installed) {
                 if (body.keep_alive === 0) {
                     running.delete(body.model);
                 } else {
-                    running.add(body.model);
+                    setRunning(body.model, body.keep_alive);
                 }
                 return sendJson(res, 200, { model: body.model, response: '', done: true });
             }
-            running.add(body.model);
+            setRunning(body.model, body.keep_alive);
             const stats = { prompt_eval_count: 12, eval_count: 5, eval_duration: 500_000_000, done: true };
             if (url === '/api/chat') {
                 return sendJson(res, 200, {

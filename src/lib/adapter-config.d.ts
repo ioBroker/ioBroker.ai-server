@@ -28,6 +28,8 @@ declare global {
             requestTimeout: number;
             /** Model used if a request does not name one */
             defaultModel: string;
+            /** Load the default model at the start and keep it loaded, also after other models were used */
+            keepDefaultLoaded: boolean;
             /** Delete models not used for this many days, 0 = never */
             deleteUnusedDays: number;
             /** Let plugin-docker update the image automatically */

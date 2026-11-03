@@ -98,6 +98,7 @@ Reiter **Allgemein**:
 | Backend                          | "Docker-Container (von ioBroker verwaltet)" oder "Externer Ollama-Server"              |
 | URL des externen Servers         | nur beim externen Server, z. B. `http://192.168.1.50:11434`                            |
 | Standardmodell                   | für Anfragen ohne Modellangabe; fehlt es, wird es beim Start heruntergeladen (siehe unten) |
+| Standardmodell geladen halten    | das Standardmodell ist immer bereit, siehe [Standardmodell geladen halten](#standardmodell-geladen-halten) |
 | Nicht benutzte Modelle löschen nach | Anzahl Tage, `0` (Standard) = nie, siehe [Nicht benutzte Modelle löschen](#nicht-benutzte-modelle-löschen) |
 | Zeitlimit pro Anfrage            | maximale Dauer einer Anfrage an das Modell in Sekunden (Standard 300)                  |
 | Parallele Anfragen               | wie viele Anfragen gleichzeitig an das Modell gehen (Standard 1)                       |
@@ -190,6 +191,29 @@ gibt es im Reiter "Geräte" von admin, wenn dieser Reiter eingeschaltet ist.
 Die Kennzeichen "geladen" und "Standardmodell" auf den Karten brauchen admin 8.0.1 oder neuer; ältere Versionen zeigen
 sie nicht an.
 
+### Standardmodell geladen halten
+
+Ollama entlädt ein Modell nach der unter "Modell im Speicher halten" eingestellten Zeit (Standard 5 Minuten). Die
+nächste Anfrage muss es dann erst wieder laden, das dauert einige Sekunden bis Minuten. Mit "Standardmodell geladen
+halten" (Reiter "Allgemein") ist das Standardmodell immer bereit:
+
+- Es wird beim Start der Instanz geladen und spätestens 30 Sekunden nach seinem Download.
+- Anfragen an das Modell halten es dauerhaft geladen (`keep_alive: -1`). Andere Modelle verwenden weiter "Modell im
+  Speicher halten".
+- Alle 30 Sekunden prüft der Adapter, ob es noch geladen ist. Hat eine Anfrage an ein anderes Modell es aus dem
+  Speicher verdrängt, wird es wieder geladen, sobald kein anderes Modell mehr geladen ist. Beim Backend
+  "Docker-Container" ist immer nur ein Modell geladen, das passiert also nach "Modell im Speicher halten" des anderen
+  Modells. Hat eine Anfrage eines anderen Adapters direkt an Ollama eine Zeit zum Entladen gesetzt (Ollama verwendet
+  "Modell im Speicher halten" für Anfragen ohne `keep_alive`), wird es wieder dauerhaft geladen.
+- Wird es absichtlich entladen (Schaltfläche, `unloadModel`, Reiter "Modelle"), bleibt es entladen, bis es wieder
+  geladen oder benutzt wird oder die Instanz neu startet.
+- Kann es nicht geladen werden, z. B. weil der Arbeitsspeicher nicht reicht, steht der Fehler im Log und in
+  `info.lastError`, und der nächste Versuch folgt nach 10 Minuten.
+
+Das Modell belegt seinen Speicher dauerhaft: etwa seine Größe plus 1-2 GB, siehe [Arbeitsspeicher](#arbeitsspeicher).
+"Modell im Speicher halten" = `-1` ist etwas anderes: Es hält jedes benutzte Modell geladen, lädt aber keines beim Start
+und auch nicht, nachdem ein anderes Modell benutzt wurde.
+
 ### Nicht benutzte Modelle löschen
 
 Mit "Nicht benutzte Modelle löschen nach" (Reiter "Allgemein") werden Modelle, die die angegebene Anzahl Tage nicht
@@ -275,10 +299,16 @@ Der Reiter braucht admin 8.0.1 oder neuer.
 |---------------|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------|
 | `chat`        | `{ model?, messages: [{ role, content, images? }], system?, options?, format?, tools?, think? }` | `{ message, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
 | `generate`    | `{ model?, prompt, system?, options?, format?, think? }`                          | `{ response, thinking?, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
+| `chatStart`   | wie `chat`                                                                        | sofort `{ id }`                                                       |
+| `chatResult`  | `{ id, wait? }`                                                                   | `{ done: false }`, solange das Modell arbeitet, danach `{ done: true, … }` mit dem Ergebnis von `chat` |
 | `status`      | `{}`                                                                              | `{ connected, status, version, baseUrl, loadedModels }`               |
 | `getEndpoint` | `{}`                                                                              | `{ ollama, openai }`, z. B. `http://127.0.0.1:11434` und `…/v1`       |
 
 - Ohne `model` wird das Standardmodell aus den Instanzeinstellungen genutzt.
+- `chatStart` und `chatResult` sind für Clients, die nach einer Weile nicht mehr auf eine Antwort warten, wie der
+  Browser nach 30 Sekunden. `chatResult` wartet bis zu `wait` Millisekunden (höchstens 25000, Standard 0) auf die
+  Antwort des mit `id` gestarteten Chats. Jedes Ergebnis wird einmal geliefert; nicht abgeholte Ergebnisse werden nach
+  10 Minuten verworfen.
 - `system` wird als Systemnachricht vor die Nachrichten gesetzt.
 - `options`, `format`, `tools` und `think` werden unverändert an Ollama weitergegeben, siehe
   [Ollama-API](https://docs.ollama.com/api/chat). Der Adapter führt Tool-Aufrufe nicht selbst aus:
@@ -361,8 +391,8 @@ Ollama braucht keinen API-Schlüssel. Wo einer eingetragen werden muss, geht jed
 Firewall schützen.
 
 Kleine lokale Modelle sind deutlich langsamer als Cloud-Modelle und machen mehr Fehler, besonders mit Tools. Das Modell
-vor der ersten Anfrage laden (`models.<id>.load`) und im Speicher halten ("Modell im Speicher halten", z. B. `1h` oder
-`-1`), damit die erste Antwort nicht auf das Laden des Modells wartet.
+als Standardmodell wählen und "Standardmodell geladen halten" einschalten (siehe
+[Standardmodell geladen halten](#standardmodell-geladen-halten)), damit keine Antwort auf das Laden des Modells wartet.
 
 ### admin: System-Einstellungen, Reiter "KI"
 
@@ -434,7 +464,8 @@ kleineres Modell wählen (siehe [Arbeitsspeicher](#arbeitsspeicher)) oder andere
 Modell nehmen, das Nachdenken ausschalten (`think: false`) oder das "Zeitlimit pro Anfrage" erhöhen.
 
 **Die erste Antwort nach einer Pause dauert viel länger.** Das Modell wurde entladen und muss neu geladen werden.
-"Modell im Speicher halten" erhöhen, z. B. auf `1h` oder `-1`.
+"Standardmodell geladen halten" einschalten (siehe [Standardmodell geladen halten](#standardmodell-geladen-halten)) oder
+"Modell im Speicher halten" erhöhen, z. B. auf `1h`.
 
 ## Bekannte Einschränkungen
 

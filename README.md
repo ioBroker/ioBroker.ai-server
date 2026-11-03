@@ -105,6 +105,7 @@ Tab **General**:
 | Backend               | "Docker container (managed by ioBroker)" or "External Ollama server"                        |
 | External server URL   | only for the external server, e.g. `http://192.168.1.50:11434`                              |
 | Default model         | used for requests without a model, downloaded at the start if it is missing (see below)     |
+| Keep the default model loaded | the default model is always ready, see [Keeping the default model loaded](#keeping-the-default-model-loaded) |
 | Delete unused models after | number of days, `0` (default) = never, see [Deleting unused models](#deleting-unused-models) |
 | Request timeout       | maximum duration of a request to the model in seconds (default 300)                         |
 | Parallel requests     | how many requests are sent to the model at the same time (default 1)                       |
@@ -196,6 +197,28 @@ switched on.
 
 The marks "loaded" and "default model" on the cards need admin 8.0.1 or newer; older versions do not show them.
 
+### Keeping the default model loaded
+
+Ollama unloads a model after the time set in "Keep model in memory" (default 5 minutes). The next request has to load
+it again first, which takes from a few seconds to minutes. With "Keep the default model loaded" (tab "General"), the
+default model is always ready:
+
+- It is loaded when the instance starts, and within 30 seconds after it was downloaded.
+- Requests to it keep it loaded for good (`keep_alive: -1`). Other models still use "Keep model in memory".
+- Every 30 seconds, the adapter checks that it is still loaded. If a request to another model pushed it out of memory,
+  it is loaded again as soon as no other model is loaded any more. With the backend "Docker container", only one model
+  is loaded at a time, so this happens after "Keep model in memory" of the other model. If a request of another
+  adapter directly to Ollama set a time to unload it (Ollama uses "Keep model in memory" for requests without
+  `keep_alive`), it is kept loaded for good again.
+- If it is unloaded on purpose (button, `unloadModel`, tab "Models"), it stays unloaded until it is loaded again or
+  used, or the instance restarts.
+- If it cannot be loaded, e.g. as the memory is too small, the error is written to the log and to `info.lastError`, and
+  the next attempt follows after 10 minutes.
+
+The model uses its memory all the time: about its size plus 1-2 GB, see [Memory](#memory). "Keep model in memory" =
+`-1` is different: it keeps every model loaded that was used, but does not load one at the start nor after another
+model was used.
+
 ### Deleting unused models
 
 With "Delete unused models after" (tab "General"), models that were not used for the given number of days are deleted
@@ -276,10 +299,15 @@ The tab needs admin 8.0.1 or newer.
 |---------------|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------|
 | `chat`        | `{ model?, messages: [{ role, content, images? }], system?, options?, format?, tools?, think? }` | `{ message, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
 | `generate`    | `{ model?, prompt, system?, options?, format?, think? }`                          | `{ response, thinking?, model, durationMs, promptTokens, completionTokens, tokensPerSecond }` |
+| `chatStart`   | as `chat`                                                                         | `{ id }` at once                                                      |
+| `chatResult`  | `{ id, wait? }`                                                                   | `{ done: false }` while the model works, then `{ done: true, … }` with the result of `chat` |
 | `status`      | `{}`                                                                              | `{ connected, status, version, baseUrl, loadedModels }`               |
 | `getEndpoint` | `{}`                                                                              | `{ ollama, openai }`, e.g. `http://127.0.0.1:11434` and `…/v1`        |
 
 - Without `model`, the default model of the instance settings is used.
+- `chatStart` and `chatResult` are for clients that stop waiting for an answer after a while, like the browser after
+  30 seconds. `chatResult` waits up to `wait` milliseconds (at most 25000, default 0) for the answer of the chat started
+  with `id`. Each result is returned once; results nobody fetches are forgotten after 10 minutes.
 - `system` is put in front of the messages as a system message.
 - `options`, `format`, `tools` and `think` are passed to Ollama unchanged, see the
   [Ollama API](https://docs.ollama.com/api/chat). The adapter does not execute tool calls itself:
@@ -359,9 +387,9 @@ Ollama needs no API key. Where a key has to be entered, any text works, Ollama i
 set "Bind address" to `0.0.0.0` and use the IP address of the Ollama host, e.g. `http://192.168.1.10:11434/v1`.
 Then everyone in the network can use Ollama without a password, so protect the port with a firewall if needed.
 
-Small local models are much slower than cloud models and make more mistakes, especially with tools. Load the model
-before the first request (`models.<id>.load`) and keep it in memory ("Keep model in memory", e.g. `1h` or `-1`), so
-the first answer does not wait for the model to load.
+Small local models are much slower than cloud models and make more mistakes, especially with tools. Make the model the
+default model and switch on "Keep the default model loaded" (see
+[Keeping the default model loaded](#keeping-the-default-model-loaded)), so no answer waits for the model to load.
 
 ### admin: system settings, tab "AI"
 
@@ -429,8 +457,9 @@ smaller model (see [Memory](#memory)) or unload other models.
 **"Ollama did not answer within 300 s".** The model is too slow for this request on this hardware. Use a smaller model,
 switch thinking off (`think: false`) or raise "Request timeout".
 
-**The first answer after a pause takes much longer.** The model was unloaded and has to be loaded again. Raise "Keep
-model in memory", e.g. to `1h` or `-1`.
+**The first answer after a pause takes much longer.** The model was unloaded and has to be loaded again. Switch on
+"Keep the default model loaded" (see [Keeping the default model loaded](#keeping-the-default-model-loaded)), or raise
+"Keep model in memory", e.g. to `1h`.
 
 ## Known limitations
 
@@ -460,7 +489,9 @@ with ROCm, or an Ollama installed directly on the host with the backend "Externa
 * (GermanBluefox) tab "Models" (device manager): size and last use of every model, load, unload, delete, download with
   progress
 * (GermanBluefox) option to delete models that were not used for a number of days
-* (GermanBluefox) tab "Chat" in the instance settings to try the models; `chat` and `generate` return `tokensPerSecond`
+* (GermanBluefox) tab "Chat" in the instance settings to try the models; `chat` and `generate` return `tokensPerSecond`;
+  `chatStart` and `chatResult` for clients that stop waiting after a while, like the browser after 30 seconds
+* (GermanBluefox) option "Keep the default model loaded": the default model is loaded at the start and stays ready
 
 ## License
 MIT License

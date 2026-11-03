@@ -15,6 +15,7 @@
     "custom_ai-server_Thinking": "Nachdenken",
     "custom_ai-server_Thinking models think first. That takes many times longer.": "Denkende Modelle denken zuerst nach. Das dauert ein Vielfaches länger.",
     "custom_ai-server_Type a message…": "Nachricht eingeben…",
+    "custom_ai-server_Waiting for the answer.": "Warte auf die Antwort.",
     "custom_ai-server_Waiting for the answer. The first one takes longer, as the model is loaded.": "Warte auf die Antwort. Die erste dauert länger, weil das Modell geladen wird.",
     "custom_ai-server_e.g. Answer briefly.": "z. B. Antworte kurz.",
     "custom_ai-server_loaded": "geladen"

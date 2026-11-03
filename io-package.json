@@ -108,6 +108,7 @@
         "maxQueue": 10,
         "requestTimeout": 300,
         "defaultModel": "",
+        "keepDefaultLoaded": false,
         "deleteUnusedDays": 0,
         "autoUpdate": false,
         "stopOnUnload": false

@@ -52,6 +52,17 @@
                     "lg": 4,
                     "xl": 4
                 },
+                "keepDefaultLoaded": {
+                    "type": "checkbox",
+                    "label": "Keep the default model loaded",
+                    "help": "help_keepDefaultLoaded",
+                    "disabled": "!data.defaultModel",
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "xl": 4
+                },
                 "deleteUnusedDays": {
                     "type": "number",
                     "label": "Delete unused models after",

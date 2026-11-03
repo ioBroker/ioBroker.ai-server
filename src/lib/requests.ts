@@ -2,6 +2,7 @@
  * Requests to the model: check the messages of `sendTo('chat')` and `sendTo('generate')`, build the requests to
  * Ollama and the metrics of the answers.
  */
+import { keepAliveFor } from './keep-loaded';
 import {
     type OllamaChatRequest,
     type OllamaGenerateRequest,
@@ -16,6 +17,8 @@ export interface RequestDefaults {
     model: string;
     /** How long the model stays loaded after the request, e.g. "5m" */
     keepAlive: string | number;
+    /** The model that stays loaded: requests to it keep it loaded for good. Empty or missing if none. */
+    keptModel?: string;
 }
 
 /** Metrics of an answer, as written into the states `metrics.*` */
@@ -37,6 +40,16 @@ function asObject(message: unknown): Record<string, unknown> {
         throw new Error('The message has to be an object');
     }
     return message as Record<string, unknown>;
+}
+
+/**
+ * `keep_alive` of a request to the model
+ *
+ * @param model the model of the request
+ * @param defaults the settings
+ */
+function requestKeepAlive(model: string, defaults: RequestDefaults): string | number {
+    return toKeepAlive(keepAliveFor(model, defaults.keepAlive, defaults.keptModel || ''));
 }
 
 function pickModel(model: unknown, defaults: RequestDefaults): string {
@@ -105,10 +118,11 @@ export function toChatRequest(message: unknown, defaults: RequestDefaults): Olla
     const system = optionalString(input.system, 'system');
     // further fields of the messages, e.g. the tool calls of the model, are passed on unchanged
     const messages = input.messages as OllamaMessage[];
+    const model = pickModel(input.model, defaults);
     const request: OllamaChatRequest = {
-        model: pickModel(input.model, defaults),
+        model,
         messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
-        keep_alive: toKeepAlive(defaults.keepAlive),
+        keep_alive: requestKeepAlive(model, defaults),
         ...passThrough(input),
     };
     if (input.tools !== undefined) {
@@ -129,10 +143,11 @@ export function toGenerateRequest(message: unknown, defaults: RequestDefaults): 
     if (!prompt) {
         throw new Error('"prompt" has to be a non-empty text');
     }
+    const model = pickModel(input.model, defaults);
     const request: OllamaGenerateRequest = {
-        model: pickModel(input.model, defaults),
+        model,
         prompt,
-        keep_alive: toKeepAlive(defaults.keepAlive),
+        keep_alive: requestKeepAlive(model, defaults),
         ...passThrough(input),
     };
     const system = optionalString(input.system, 'system');
