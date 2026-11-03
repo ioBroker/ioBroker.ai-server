@@ -1,6 +1,6 @@
 {
   "name": "iobroker.ai-server",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Runs a local large language model (Ollama) via Docker and manages its models",
   "author": {
     "name": "GermanBluefox",

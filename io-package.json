@@ -1,8 +1,22 @@
 {
     "common": {
         "name": "ai-server",
-        "version": "0.0.1",
-        "news": {},
+        "version": "0.1.0",
+        "news": {
+            "0.1.0": {
+                "en": "Initial release: Ollama in Docker (CPU or AMD ROCm) or an external Ollama server. Download, load, unload and delete models in the tab \"Models\". Requests via sendTo, the states chat.* and the tab \"Chat\". The default model can stay loaded all the time. The tab \"General\" shows the addresses of the Ollama API and of the OpenAI-compatible API.",
+                "de": "Erste Version: Ollama in Docker (CPU oder AMD ROCm) oder ein externer Ollama-Server. Modelle im Reiter \"Modelle\" herunterladen, laden, entladen und löschen. Anfragen per sendTo, über die Datenpunkte chat.* und im Reiter \"Chat\". Das Standardmodell kann dauerhaft geladen bleiben. Der Reiter \"Allgemein\" zeigt die Adressen der Ollama-API und der OpenAI-kompatiblen API.",
+                "ru": "Первая версия: Ollama в Docker (CPU или AMD ROCm) или внешний сервер Ollama. Скачивание, загрузка в память, выгрузка и удаление моделей на вкладке «Модели». Запросы через sendTo, состояния chat.* и вкладку «Чат». Модель по умолчанию может постоянно оставаться загруженной. Вкладка «Общие» показывает адреса API Ollama и API, совместимого с OpenAI.",
+                "pt": "Primeira versão: Ollama no Docker (CPU ou AMD ROCm) ou um servidor Ollama externo. Baixar, carregar, descarregar e excluir modelos na aba \"Modelos\". Solicitações via sendTo, pelos estados chat.* e na aba \"Chat\". O modelo padrão pode ficar carregado o tempo todo. A aba \"Geral\" mostra os endereços da API do Ollama e da API compatível com OpenAI.",
+                "nl": "Eerste versie: Ollama in Docker (CPU of AMD ROCm) of een externe Ollama-server. Modellen downloaden, laden, uit het geheugen halen en verwijderen op het tabblad \"Modellen\". Verzoeken via sendTo, de states chat.* en het tabblad \"Chat\". Het standaardmodel kan altijd geladen blijven. Het tabblad \"Algemeen\" toont de adressen van de Ollama-API en van de OpenAI-compatibele API.",
+                "fr": "Première version : Ollama dans Docker (CPU ou AMD ROCm) ou un serveur Ollama externe. Télécharger, charger, décharger et supprimer les modèles dans l'onglet « Modèles ». Requêtes via sendTo, les états chat.* et l'onglet « Chat ». Le modèle par défaut peut rester chargé en permanence. L'onglet « Général » affiche les adresses de l'API Ollama et de l'API compatible OpenAI.",
+                "it": "Prima versione: Ollama in Docker (CPU o AMD ROCm) o un server Ollama esterno. Scaricare, caricare, rimuovere dalla memoria ed eliminare i modelli nella scheda \"Modelli\". Richieste tramite sendTo, gli stati chat.* e la scheda \"Chat\". Il modello predefinito può restare sempre caricato. La scheda \"Generale\" mostra gli indirizzi dell'API di Ollama e dell'API compatibile con OpenAI.",
+                "es": "Primera versión: Ollama en Docker (CPU o AMD ROCm) o un servidor Ollama externo. Descargar, cargar, quitar de la memoria y eliminar modelos en la pestaña \"Modelos\". Solicitudes mediante sendTo, los estados chat.* y la pestaña \"Chat\". El modelo predeterminado puede quedarse cargado todo el tiempo. La pestaña \"General\" muestra las direcciones de la API de Ollama y de la API compatible con OpenAI.",
+                "pl": "Pierwsza wersja: Ollama w Dockerze (CPU lub AMD ROCm) albo zewnętrzny serwer Ollama. Pobieranie, ładowanie, zwalnianie z pamięci i usuwanie modeli na karcie \"Modele\". Zapytania przez sendTo, stany chat.* i kartę \"Czat\". Domyślny model może pozostawać stale załadowany. Karta \"Ogólne\" pokazuje adresy API Ollama i API zgodnego z OpenAI.",
+                "uk": "Перша версія: Ollama в Docker (CPU або AMD ROCm) або зовнішній сервер Ollama. Завантаження моделей з інтернету, завантаження в пам'ять, вивантаження та видалення на вкладці «Моделі». Запити через sendTo, стани chat.* і вкладку «Чат». Модель за замовчуванням може постійно залишатися в пам'яті. Вкладка «Загальні» показує адреси API Ollama та API, сумісного з OpenAI.",
+                "zh-cn": "首个版本：在 Docker 中运行 Ollama（CPU 或 AMD ROCm），或使用外部 Ollama 服务器。在“模型”选项卡中下载、加载、卸载和删除模型。通过 sendTo、状态 chat.* 和“聊天”选项卡发送请求。默认模型可以一直保持加载。“常规”选项卡显示 Ollama API 和 OpenAI 兼容 API 的地址。"
+            }
+        },
         "titleLang": {
             "en": "AI Server",
             "de": "AI-Server",

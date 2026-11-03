@@ -484,8 +484,7 @@ with ROCm, or an Ollama installed directly on the host with the backend "Externa
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-
-### **WORK IN PROGRESS**
+### 0.1.0 (2026-11-03)
 * (GermanBluefox) initial release: Ollama in Docker (CPU or AMD ROCm) or an external Ollama server
 * (GermanBluefox) models: list, download with progress, load, unload, delete; default model is downloaded at start
 * (GermanBluefox) requests via `sendTo` (`chat`, `generate`, `status`, `getEndpoint`) and via the states `chat.*`
