@@ -46,6 +46,12 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
+      # The test "The adapter starts" of @iobroker/testing waits 60 s, but plugin-docker downloads the image of
+      # Ollama (several GB) before the adapter starts. Only the Linux runners have Docker for Linux containers.
+      - name: Pull the image of Ollama
+        if: runner.os == 'Linux'
+        run: docker pull ollama/ollama:latest
+
       - uses: ioBroker/testing-action-adapter@v1
         with:
           node-version: ${{ matrix.node-version }}
