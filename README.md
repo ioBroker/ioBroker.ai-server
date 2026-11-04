@@ -484,7 +484,7 @@ with ROCm, or an Ollama installed directly on the host with the backend "Externa
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.1 (2026-11-04)
 * (GermanBluefox) the package is published by GitHub Actions with npm provenance (trusted publishing), no functional
   changes
 

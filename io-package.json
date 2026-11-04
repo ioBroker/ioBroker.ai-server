@@ -1,8 +1,21 @@
 {
     "common": {
         "name": "ai-server",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "news": {
+            "0.1.1": {
+                "en": "The package is published by GitHub Actions with npm provenance (trusted publishing). No functional changes.",
+                "de": "Das Paket wird von GitHub Actions mit npm-Provenance (Trusted Publishing) veröffentlicht. Keine funktionalen Änderungen.",
+                "ru": "Пакет публикуется через GitHub Actions с подтверждением происхождения npm (trusted publishing). Функциональных изменений нет.",
+                "pt": "O pacote é publicado pelo GitHub Actions com proveniência do npm (trusted publishing). Sem alterações funcionais.",
+                "nl": "Het pakket wordt gepubliceerd door GitHub Actions met npm-provenance (trusted publishing). Geen functionele wijzigingen.",
+                "fr": "Le paquet est publié par GitHub Actions avec la provenance npm (trusted publishing). Aucun changement fonctionnel.",
+                "it": "Il pacchetto viene pubblicato da GitHub Actions con la provenienza npm (trusted publishing). Nessuna modifica funzionale.",
+                "es": "El paquete se publica mediante GitHub Actions con procedencia de npm (trusted publishing). Sin cambios funcionales.",
+                "pl": "Pakiet jest publikowany przez GitHub Actions z poświadczeniem pochodzenia npm (trusted publishing). Brak zmian funkcjonalnych.",
+                "uk": "Пакет публікується через GitHub Actions з підтвердженням походження npm (trusted publishing). Функціональних змін немає.",
+                "zh-cn": "软件包由 GitHub Actions 发布，并带有 npm 来源证明（trusted publishing）。没有功能变化。"
+            },
             "0.1.0": {
                 "en": "Initial release: Ollama in Docker (CPU or AMD ROCm) or an external Ollama server. Download, load, unload and delete models in the tab \"Models\". Requests via sendTo, the states chat.* and the tab \"Chat\". The default model can stay loaded all the time. The tab \"General\" shows the addresses of the Ollama API and of the OpenAI-compatible API.",
                 "de": "Erste Version: Ollama in Docker (CPU oder AMD ROCm) oder ein externer Ollama-Server. Modelle im Reiter \"Modelle\" herunterladen, laden, entladen und löschen. Anfragen per sendTo, über die Datenpunkte chat.* und im Reiter \"Chat\". Das Standardmodell kann dauerhaft geladen bleiben. Der Reiter \"Allgemein\" zeigt die Adressen der Ollama-API und der OpenAI-kompatiblen API.",
