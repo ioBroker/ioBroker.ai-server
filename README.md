@@ -504,6 +504,8 @@ with ROCm, or an Ollama installed directly on the host with the backend "Externa
 * (GermanBluefox) option "Keep the default model loaded": the default model is loaded at the start and stays ready
 * (GermanBluefox) the tab "General" shows the addresses of the Ollama API and of the OpenAI-compatible API
 
+Older changes can be found in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
+
 ## License
 MIT License
 
